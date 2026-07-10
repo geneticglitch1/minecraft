@@ -20,12 +20,16 @@ Work down this list:
 1. **"Not whitelisted"** → their username isn't approved (or the window expired and
    auto-revoked them). Access & Auth → approve/re-open. Username must match **exactly**
    (case matters in TLauncher).
-2. **Joins but immediately kicked** → they didn't `/register` or `/login` in time —
+2. **Kicked with a "secure profile" / "invalid signature" style error** →
+   `enforce-secure-profile` must be `false` for offline launchers. The compose file
+   sets `ENFORCE_SECURE_PROFILE: "FALSE"`; if you edited `server.properties` by hand,
+   make sure `enforce-secure-profile=false`.
+3. **Joins but immediately kicked** → they didn't `/register` or `/login` in time —
    EasyAuth kicks unauthenticated players after a timeout. Tell them to type faster or
    raise the timeout in `config/EasyAuth/`.
-3. **"Connection timed out"** → networking: is 25565 port-forwarded? Are they using
+4. **"Connection timed out"** → networking: is 25565 port-forwarded? Are they using
    your *public* IP? Does `docker compose ps` show `mc` healthy?
-4. **Wrong password loop** → Access & Auth → **Reset password**, share the temporary
+5. **Wrong password loop** → Access & Auth → **Reset password**, share the temporary
    one privately.
 
 ## Panel shows "Offline" but the server is up

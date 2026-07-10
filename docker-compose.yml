@@ -16,8 +16,11 @@ services:
       MEMORY: ${MC_MEMORY:-6G}
       USE_AIKAR_FLAGS: "true"
 
-      # Offline mode + whitelist as the approval gate (see docs/auth-flow.md)
+      # Offline mode + whitelist as the approval gate (see docs/auth-flow.md).
+      # enforce-secure-profile must be off or offline-launcher players are
+      # rejected before EasyAuth can even prompt them (EasyAuth issue #68).
       ONLINE_MODE: "FALSE"
+      ENFORCE_SECURE_PROFILE: "FALSE"
       ENABLE_WHITELIST: "TRUE"
       ENFORCE_WHITELIST: "TRUE"
 
