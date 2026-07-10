@@ -1,0 +1,106 @@
+name: minecraft
+
+services:
+  # ── Minecraft server (Fabric via itzg/minecraft-server) ─────────────────
+  mc:
+    image: itzg/minecraft-server:latest
+    container_name: mc
+    restart: unless-stopped
+    stop_grace_period: 2m
+    tty: false
+    stdin_open: false
+    environment:
+      EULA: "TRUE"
+      TYPE: ${SERVER_TYPE:-FABRIC}
+      VERSION: ${MC_VERSION:-26.2}
+      MEMORY: ${MC_MEMORY:-6G}
+      USE_AIKAR_FLAGS: "true"
+
+      # Offline mode + whitelist as the approval gate (see docs/auth-flow.md)
+      ONLINE_MODE: "FALSE"
+      ENABLE_WHITELIST: "TRUE"
+      ENFORCE_WHITELIST: "TRUE"
+
+      MOTD: ${MC_MOTD:-A cozy server for friends}
+      DIFFICULTY: ${MC_DIFFICULTY:-normal}
+      MAX_PLAYERS: ${MC_MAX_PLAYERS:-10}
+      VIEW_DISTANCE: ${MC_VIEW_DISTANCE:-10}
+      SIMULATION_DISTANCE: ${MC_SIMULATION_DISTANCE:-8}
+      SEED: ${MC_SEED:-}
+      SPAWN_PROTECTION: "0"
+
+      # RCON is only reachable inside the compose network (never published)
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: ${RCON_PASSWORD:?generate with scripts/setup.sh}
+
+      # Server-side mods, auto-resolved for the current MC version on every start
+      MODRINTH_PROJECTS: ${MODRINTH_PROJECTS:-fabric-api,easyauth,spark,lithium,ferrite-core}
+      MODRINTH_DOWNLOAD_DEPENDENCIES: required
+
+      # Modpack support (leave empty for lean Fabric; see docs/mods-and-modpacks.md)
+      MODRINTH_MODPACK: ${MODRINTH_MODPACK:-}
+
+      TZ: ${TZ:-UTC}
+    ports:
+      - "${MC_PORT:-25565}:25565"
+    volumes:
+      - ./data/mc:/data
+    mem_limit: ${MC_CONTAINER_MEM_LIMIT:-7g}
+
+  # ── Scheduled world backups (itzg/mc-backup) ─────────────────────────────
+  backup:
+    image: itzg/mc-backup:latest
+    container_name: mc-backup
+    restart: unless-stopped
+    environment:
+      BACKUP_INTERVAL: ${BACKUP_INTERVAL:-24h}
+      INITIAL_DELAY: 10m
+      PRUNE_BACKUPS_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_NAME: world
+      TAR_COMPRESS_METHOD: gzip
+      PAUSE_IF_NO_PLAYERS: "false"
+      RCON_HOST: mc
+      RCON_PORT: "25575"
+      RCON_PASSWORD: ${RCON_PASSWORD}
+      EXCLUDES: "*.tmp,cache,logs"
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ./data/mc:/data:ro
+      - ./data/backups:/backups
+    depends_on:
+      mc:
+        condition: service_healthy
+
+  # ── Web management dashboard ─────────────────────────────────────────────
+  dashboard:
+    build: ./dashboard
+    image: minecraft-dashboard:local
+    container_name: mc-dashboard
+    restart: unless-stopped
+    environment:
+      PANEL_SESSION_SECRET: ${PANEL_SESSION_SECRET:?generate with scripts/setup.sh}
+      PANEL_ADMIN_PASSWORD: ${PANEL_ADMIN_PASSWORD:-}
+      RCON_HOST: mc
+      RCON_PORT: "25575"
+      RCON_PASSWORD: ${RCON_PASSWORD}
+      MC_CONTAINER: mc
+      BACKUP_CONTAINER: mc-backup
+      MC_DATA_DIR: /mc-data
+      BACKUPS_DIR: /backups
+      APP_DATA_DIR: /app-data
+      PROJECT_DIR: /project
+      REGISTRATION_WINDOW_MINUTES: ${REGISTRATION_WINDOW_MINUTES:-2}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      TZ: ${TZ:-UTC}
+    ports:
+      # LAN/VPN only — do not port-forward this on your router (docs/networking.md)
+      - "${DASHBOARD_PORT:-8080}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/mc:/mc-data
+      - ./data/backups:/backups
+      - ./data/dashboard:/app-data
+      - ./:/project
+    mem_limit: 512m
+    depends_on:
+      - mc

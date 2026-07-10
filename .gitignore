@@ -1,0 +1,14 @@
+# Runtime data (world, backups, panel database) — never commit
+data/
+dashboard/dev-data/
+
+# Secrets
+.env
+
+# Dashboard build artifacts
+dashboard/node_modules/
+dashboard/.next/
+dashboard/next-env.d.ts
+
+# OS noise
+.DS_Store
