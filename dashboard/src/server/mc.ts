@@ -1,4 +1,6 @@
 import { rcon, stripColors, RconError } from "./rcon";
+import { execInContainer } from "./docker";
+import { env } from "./env";
 
 /**
  * Game-level operations on top of RCON: player list, whitelist, EasyAuth
@@ -93,6 +95,38 @@ export async function easyauthSetPassword(name: string, password: string): Promi
 
 export type TpsSample = { tps: number | null; mspt: number | null };
 
+/**
+ * Primary TPS/MSPT source: vanilla `tick query`. Unlike spark, its output is
+ * returned synchronously over RCON. Typical output:
+ *   "The game is running normally / Target tick rate: 20.0 per second. /
+ *    Average time per tick: 2.1ms (Target: 50.0ms) ..."
+ */
+export async function tickQueryTps(): Promise<TpsSample | null> {
+  const out = stripColors(await rcon().exec("tick query"));
+  const target = Number(out.match(/tick rate:\s*([\d.]+)/i)?.[1]) || 20;
+  if (/paused|frozen/i.test(out)) {
+    // pause-when-empty idle state — the server is keeping up by definition
+    return { tps: target, mspt: null };
+  }
+  const mspt = out.match(/per tick:\s*([\d.]+)\s*ms/i);
+  if (!mspt) return null;
+  const ms = Number(mspt[1]);
+  const tps = ms > 0 ? Math.min(target, 1000 / ms) : target;
+  return { tps: Math.round(tps * 10) / 10, mspt: ms };
+}
+
+/** TPS with fallback chain: tick query → spark → nulls. */
+export async function queryTps(): Promise<TpsSample> {
+  try {
+    const t = await tickQueryTps();
+    if (t) return t;
+  } catch (err) {
+    if (err instanceof RconError) return { tps: null, mspt: null };
+    throw err;
+  }
+  return sparkTps();
+}
+
 export async function sparkTps(): Promise<TpsSample> {
   try {
     const out = stripColors(await rcon().exec("spark tps"));
@@ -127,5 +161,15 @@ export async function sparkPings(): Promise<Record<string, number>> {
 }
 
 export async function sparkHealthReport(): Promise<string> {
-  return stripColors(await rcon().exec("spark healthreport"));
+  const out = stripColors(await rcon().exec("spark healthreport"));
+  if (out.trim()) return out;
+  // spark replies asynchronously; over RCON the response is often empty.
+  // Route the command through the server's real console instead — the report
+  // then shows up in the live log.
+  try {
+    await execInContainer(env.mcContainer, ["mc-send-to-console", "spark", "healthreport"], 15_000);
+    return "spark replies asynchronously, so the report can't be captured here.\nIt was sent to the server console instead — open the Console page to read it (takes a few seconds).";
+  } catch {
+    return "spark did not return output over RCON, and sending to the server console failed.";
+  }
 }

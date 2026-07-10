@@ -40,7 +40,13 @@ export async function GET() {
 
     const serverHealthy = (tps === null || tps >= 18) && (mspt === null || mspt <= 40);
     const players = online.map((name) => {
-      const ping = livePings[name] ?? null;
+      // spark's RCON reply is often empty (async output) — fall back to the
+      // most recent logged sample if it's fresh enough.
+      const hist = historyByPlayer[name] ?? [];
+      const lastSample = hist.length > 0 ? hist[hist.length - 1] : null;
+      const ping =
+        livePings[name] ??
+        (lastSample && Date.now() - lastSample.ts < 5 * 60 * 1000 ? lastSample.ping : null);
       return {
         name,
         ping,

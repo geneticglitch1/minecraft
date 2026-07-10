@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { execFile } from "node:child_process";
-import { inspectContainer, containerStats } from "./docker";
-import { listOnlinePlayers, sparkTps, sparkPings } from "./mc";
+import { inspectContainer, containerStats, execInContainer } from "./docker";
+import { listOnlinePlayers, queryTps, sparkPings } from "./mc";
 import { db } from "./db";
 import { bus } from "./bus";
 import { notify } from "./notify";
@@ -72,9 +72,9 @@ async function sampleTick(state: SamplerState) {
       players = (await listOnlinePlayers()).online;
     } catch {}
 
-    // spark TPS every 3rd tick (30s)
+    // TPS every 3rd tick (30s) — vanilla `tick query`, spark as fallback
     if (state.tick % 3 === 0) {
-      const t = await sparkTps();
+      const t = await queryTps();
       state.cachedTps = t.tps;
       state.cachedMspt = t.mspt;
       if (t.tps !== null && t.tps < 15) {
@@ -89,10 +89,17 @@ async function sampleTick(state: SamplerState) {
     }
 
     // per-player pings every 6th tick (60s)
-    if (state.tick % 6 === 0) {
+    if (state.tick % 6 === 0 && (players ?? 0) > 0) {
       const pings = await sparkPings();
-      const insert = db().prepare("INSERT INTO ping_samples(ts, player, ping) VALUES(?, ?, ?)");
-      for (const [player, ping] of Object.entries(pings)) insert.run(ts, player, ping);
+      if (Object.keys(pings).length > 0) {
+        const insert = db().prepare("INSERT INTO ping_samples(ts, player, ping) VALUES(?, ?, ?)");
+        for (const [player, ping] of Object.entries(pings)) insert.run(ts, player, ping);
+      } else {
+        // spark replies asynchronously, so RCON often gets an empty response.
+        // Fall back to sending the command to the server console; the output
+        // lands in the log and the log watcher records the pings from there.
+        void execInContainer(env.mcContainer, ["mc-send-to-console", "spark", "ping"], 15_000).catch(() => {});
+      }
     }
   } else {
     state.cachedTps = null;

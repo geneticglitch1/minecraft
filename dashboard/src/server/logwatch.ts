@@ -26,6 +26,17 @@ function messageOf(line: string): string {
 
 function parseEvent(line: string, backfill: boolean) {
   const msg = messageOf(line).replace(/§[0-9a-fk-or]/gi, "");
+
+  // spark ping output routed through the console (see sampler fallback):
+  // "[⚡] Alice: 23ms"
+  const ping = msg.match(/\[⚡\]\s*([A-Za-z0-9_]{3,16}):\s*([\d.]+)\s*ms/);
+  if (ping && !backfill) {
+    db()
+      .prepare("INSERT INTO ping_samples(ts, player, ping) VALUES(?, ?, ?)")
+      .run(Date.now(), ping[1], Math.round(Number(ping[2])));
+    return;
+  }
+
   const emit = (type: string, player?: string, detail?: string) => {
     if (backfill) return; // don't re-record history after a panel restart
     logActivity(type, player, detail);
