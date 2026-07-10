@@ -20,6 +20,11 @@ Work down this list:
 1. **"Not whitelisted"** → their username isn't approved (or the window expired and
    auto-revoked them). Access & Auth → approve/re-open. Username must match **exactly**
    (case matters in TLauncher).
+   Note: always whitelist through the panel, not with `whitelist add` in the console —
+   the vanilla command looks names up at Mojang and can store a *premium* UUID that
+   will never match an offline player. The panel writes the correct offline UUID
+   directly. If someone was added via the console and can't join, revoke and
+   re-approve them from the panel.
 2. **Kicked with a "secure profile" / "invalid signature" style error** →
    `enforce-secure-profile` must be `false` for offline launchers. The compose file
    sets `ENFORCE_SECURE_PROFILE: "FALSE"`; if you edited `server.properties` by hand,

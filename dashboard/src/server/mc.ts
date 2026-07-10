@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+import { createHash } from "node:crypto";
 import { rcon, stripColors, RconError } from "./rcon";
 import { execInContainer } from "./docker";
 import { env } from "./env";
@@ -42,27 +45,84 @@ export async function say(message: string): Promise<void> {
 }
 
 // ── whitelist ───────────────────────────────────────────────────────────
+//
+// In offline mode the whitelist matches by UUID, and the UUID of an offline
+// player is derived from their name (md5 of "OfflinePlayer:<name>", UUID v3).
+// The vanilla `whitelist add` command instead asks Mojang's API for the name
+// and stores the *premium* account's UUID — so a friend who has never joined
+// gets "You are not white-listed" even though their name is on the list.
+// We therefore write whitelist.json ourselves with the correct offline UUID
+// and just tell the server to reload it.
+
+/** Java's UUID.nameUUIDFromBytes("OfflinePlayer:<name>") — what offline servers assign. */
+export function offlineUuid(name: string): string {
+  const hash = createHash("md5").update(`OfflinePlayer:${name}`, "utf8").digest();
+  hash[6] = (hash[6] & 0x0f) | 0x30; // version 3
+  hash[8] = (hash[8] & 0x3f) | 0x80; // IETF variant
+  const hex = hash.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+type WhitelistEntry = { uuid: string; name: string };
+
+function whitelistPath(): string {
+  return path.join(env.mcDataDir, "whitelist.json");
+}
+
+function readWhitelistFile(): WhitelistEntry[] {
+  try {
+    const data = JSON.parse(fs.readFileSync(whitelistPath(), "utf8"));
+    return Array.isArray(data) ? (data as WhitelistEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeWhitelistFile(entries: WhitelistEntry[]) {
+  fs.writeFileSync(whitelistPath(), JSON.stringify(entries, null, 2) + "\n");
+  try {
+    fs.chownSync(whitelistPath(), 1000, 1000); // keep it writable by the MC user
+  } catch {}
+}
+
+async function reloadWhitelist(): Promise<void> {
+  await rcon().exec("whitelist reload");
+}
 
 export async function whitelistAdd(name: string): Promise<string> {
   assertValidUsername(name);
-  return stripColors(await rcon().exec(`whitelist add ${name}`));
+  const entries = readWhitelistFile().filter((e) => e.name.toLowerCase() !== name.toLowerCase());
+  entries.push({ uuid: offlineUuid(name), name });
+  writeWhitelistFile(entries);
+  await reloadWhitelist();
+  return `Added ${name} to the whitelist (offline UUID)`;
 }
 
 export async function whitelistRemove(name: string): Promise<string> {
   assertValidUsername(name);
-  return stripColors(await rcon().exec(`whitelist remove ${name}`));
+  writeWhitelistFile(readWhitelistFile().filter((e) => e.name.toLowerCase() !== name.toLowerCase()));
+  await reloadWhitelist();
+  return `Removed ${name} from the whitelist`;
 }
 
 export async function whitelistList(): Promise<string[]> {
-  const out = stripColors(await rcon().exec("whitelist list"));
-  // "There are 3 whitelisted player(s): Alice, Bob, Carol"
-  const colon = out.indexOf(":");
-  if (colon < 0) return [];
-  return out
-    .slice(colon + 1)
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => NAME_RE.test(s));
+  const fromFile = readWhitelistFile()
+    .map((e) => e.name)
+    .filter((n) => NAME_RE.test(n));
+  if (fromFile.length > 0) return fromFile;
+  // fallback: ask the server (e.g. data dir not mounted in dev)
+  try {
+    const out = stripColors(await rcon().exec("whitelist list"));
+    const colon = out.indexOf(":");
+    if (colon < 0) return [];
+    return out
+      .slice(colon + 1)
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => NAME_RE.test(s));
+  } catch {
+    return [];
+  }
 }
 
 // ── EasyAuth ────────────────────────────────────────────────────────────
