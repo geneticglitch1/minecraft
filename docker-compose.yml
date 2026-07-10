@@ -33,8 +33,10 @@ services:
       ENABLE_RCON: "true"
       RCON_PASSWORD: ${RCON_PASSWORD:?generate with scripts/setup.sh}
 
-      # Server-side mods, auto-resolved for the current MC version on every start
-      MODRINTH_PROJECTS: ${MODRINTH_PROJECTS:-fabric-api,easyauth,spark,lithium,ferrite-core}
+      # Server-side mods, auto-resolved for the current MC version on every start.
+      # ":beta" allows beta-typed builds for that project (EasyAuth publishes
+      # its 26.x builds as beta).
+      MODRINTH_PROJECTS: ${MODRINTH_PROJECTS:-fabric-api,easyauth:beta,spark,lithium,ferrite-core}
       MODRINTH_DOWNLOAD_DEPENDENCIES: required
 
       # Modpack support (leave empty for lean Fabric; see docs/mods-and-modpacks.md)

@@ -40,6 +40,10 @@ export async function searchMods(query: string): Promise<ModSearchResult[]> {
   return data.hits;
 }
 
+/**
+ * Entries may carry a version qualifier after a colon (e.g. "easyauth:beta"
+ * allows beta-typed builds); comparisons always use the base slug.
+ */
 export function managedSlugs(): string[] {
   return (readEnvFile()["MODRINTH_PROJECTS"] ?? "")
     .split(",")
@@ -47,22 +51,26 @@ export function managedSlugs(): string[] {
     .filter(Boolean);
 }
 
+export function baseSlug(entry: string): string {
+  return entry.split(":")[0].toLowerCase();
+}
+
 const PROTECTED_SLUGS = new Set(["fabric-api", "easyauth"]);
 
 export function addManagedMod(slug: string): string[] {
   if (!/^[a-z0-9][a-z0-9\-_]{0,63}$/i.test(slug)) throw new Error("Invalid Modrinth slug");
   const slugs = managedSlugs();
-  if (slugs.some((s) => s.toLowerCase() === slug.toLowerCase())) return slugs;
+  if (slugs.some((s) => baseSlug(s) === slug.toLowerCase())) return slugs;
   const next = [...slugs, slug.toLowerCase()];
   writeEnvFile({ MODRINTH_PROJECTS: next.join(",") });
   return next;
 }
 
 export function removeManagedMod(slug: string): string[] {
-  if (PROTECTED_SLUGS.has(slug.toLowerCase())) {
+  if (PROTECTED_SLUGS.has(baseSlug(slug))) {
     throw new Error(`${slug} is required by the panel (auth/loader) and can't be removed here`);
   }
-  const next = managedSlugs().filter((s) => s.toLowerCase() !== slug.toLowerCase());
+  const next = managedSlugs().filter((s) => baseSlug(s) !== baseSlug(slug));
   writeEnvFile({ MODRINTH_PROJECTS: next.join(",") });
   return next;
 }

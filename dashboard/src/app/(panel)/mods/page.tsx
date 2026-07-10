@@ -31,6 +31,10 @@ type SearchHit = {
 
 const PROTECTED = new Set(["fabric-api", "easyauth"]);
 
+// Managed entries may carry a version qualifier ("easyauth:beta") — compare
+// by the base slug.
+const baseSlug = (entry: string) => entry.split(":")[0].toLowerCase();
+
 export default function ModsPage() {
   const { data, refresh } = useApi<ModsData>("/api/mods", 0);
   const [query, setQuery] = useState("");
@@ -82,7 +86,7 @@ export default function ModsPage() {
     }
   };
 
-  const managedSet = new Set((data?.managed ?? []).map((s) => s.toLowerCase()));
+  const managedSet = new Set((data?.managed ?? []).map(baseSlug));
 
   return (
     <div className="space-y-4">
@@ -121,7 +125,7 @@ export default function ModsPage() {
             )}
             {hits?.length === 0 && <p className="py-6 text-center text-xs text-muted">No compatible mods found.</p>}
             {hits?.map((h) => {
-              const already = managedSet.has(h.slug.toLowerCase());
+              const already = managedSet.has(baseSlug(h.slug));
               return (
                 <div key={h.slug} className="flex items-center gap-3 rounded-lg border border-border bg-surface2 p-2.5">
                   {h.icon_url ? (
@@ -166,13 +170,13 @@ export default function ModsPage() {
             {(data?.managed ?? []).map((slug) => (
               <li key={slug} className="flex items-center gap-2 rounded-lg border border-border bg-surface2 px-3 py-2">
                 <span className="font-mono text-sm">{slug}</span>
-                {PROTECTED.has(slug.toLowerCase()) && (
+                {PROTECTED.has(baseSlug(slug)) && (
                   <Badge color="info">
                     <Lock size={9} /> required
                   </Badge>
                 )}
                 <span className="ml-auto">
-                  {!PROTECTED.has(slug.toLowerCase()) && (
+                  {!PROTECTED.has(baseSlug(slug)) && (
                     <Button
                       size="sm"
                       variant="danger"

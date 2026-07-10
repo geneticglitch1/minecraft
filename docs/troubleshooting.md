@@ -8,6 +8,7 @@
 |---|---|
 | `EULA` complaints | `EULA=TRUE` is set by compose — make sure you didn't override it |
 | A mod failed to resolve for your version | Remove that slug on the Mods page, Apply. (New MC version + mod hasn't updated yet.) |
+| `No candidate versions of '<mod>' … matched versionType=release` | The mod only ships beta builds for this MC version — append `:beta` to its entry in `MODRINTH_PROJECTS` (e.g. `easyauth:beta`) and `docker compose up -d mc` |
 | `OutOfMemoryError` | Lower `MC_VIEW_DISTANCE`, or raise `MC_MEMORY`/`MC_CONTAINER_MEM_LIMIT` if the host has headroom |
 | Port already in use | Something else on 25565 — change `MC_PORT` in `.env` |
 | Crash right after "Done" | A mod conflict — disable recently added jars (Mods page → power icon) |

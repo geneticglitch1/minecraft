@@ -36,8 +36,12 @@ restart the server.
 Managed mods are pinned by *project slug*, not version, in `.env`:
 
 ```
-MODRINTH_PROJECTS=fabric-api,easyauth,spark,lithium,ferrite-core
+MODRINTH_PROJECTS=fabric-api,easyauth:beta,spark,lithium,ferrite-core
 ```
+
+A `:beta` (or `:alpha`) suffix widens which release types are accepted for that
+project — EasyAuth publishes its 26.x builds as beta on Modrinth, so it needs the
+suffix. Without one, only release-typed builds are considered.
 
 Every time the server container (re)starts, the itzg image resolves each slug to the
 **newest release compatible with your Minecraft version** and downloads it. So:
