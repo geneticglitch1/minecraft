@@ -59,6 +59,13 @@ const FEATURED = [
     description:
       "Pre-generates the world around spawn so nobody lags exploring new chunks. Run `chunky radius 2000` then `chunky start` in Console.",
   },
+  {
+    slug: "proxy-protocol-support",
+    emoji: "🛡",
+    title: "Proxy Protocol Support",
+    description:
+      "Using TCPShield (or another proxy)? This restores players' real IPs so the Security page and IP bans work. Config is auto-enforced — see docs/tcpshield.md.",
+  },
 ];
 
 export default function ModsPage() {

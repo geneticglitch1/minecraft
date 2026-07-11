@@ -1,0 +1,42 @@
+{
+  "patches": [
+    {
+      "file": "/data/config/proxy_protocol_support.json",
+      "file-format": "json",
+      "ops": [
+        {
+          "$set": {
+            "path": "$.enableProxyProtocol",
+            "value": true,
+            "value-type": "bool"
+          }
+        },
+        {
+          "$set": {
+            "path": "$.whitelistTCPShieldServers",
+            "value": true,
+            "value-type": "bool"
+          }
+        },
+        {
+          "$set": {
+            "path": "$.proxyServerIPs",
+            "value": ["127.0.0.1"]
+          }
+        },
+        {
+          "$set": {
+            "path": "$.directAccessIPs",
+            "value": [
+              "127.0.0.1",
+              "::1",
+              "10.0.0.0/8",
+              "172.16.0.0/12",
+              "192.168.0.0/16"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
