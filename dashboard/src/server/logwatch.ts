@@ -2,6 +2,7 @@ import { streamContainerLogs, type LogStreamHandle } from "./docker";
 import { bus, pushLogLine } from "./bus";
 import { db, logActivity, getBoolSetting } from "./db";
 import { notify } from "./notify";
+import { noteObservedUuid } from "./mc";
 import { env } from "./env";
 
 /**
@@ -39,6 +40,14 @@ function shouldNotifyBlocked(key: string): boolean {
 
 function parseEvent(line: string, backfill: boolean) {
   const msg = messageOf(line).replace(/§[0-9a-fk-or]/gi, "");
+
+  // The server announces each connecting player's UUID — remember it so
+  // whitelist entries always use exactly what the server will match.
+  const uuidLine = msg.match(/^UUID of player ([A-Za-z0-9_]{3,16}) is ([0-9a-fA-F-]{36})/);
+  if (uuidLine) {
+    noteObservedUuid(uuidLine[1], uuidLine[2]);
+    return;
+  }
 
   // spark ping output routed through the console (see sampler fallback):
   // "[⚡] Alice: 23ms"

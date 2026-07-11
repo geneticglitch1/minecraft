@@ -157,6 +157,27 @@ export async function importFromWhitelist(): Promise<number> {
 
 const g = globalThis as unknown as { __craftdeckAuthWatch?: { timer: NodeJS.Timeout } };
 
+/**
+ * Consecutive whitelist-heal failures per player. After a few strikes the
+ * admin gets ONE loud notification instead of a silent 5-second retry loop.
+ */
+const healFailures = new Map<string, { count: number; notified: boolean }>();
+
+function reportHealFailure(username: string, message: string) {
+  const entry = healFailures.get(username) ?? { count: 0, notified: false };
+  entry.count++;
+  if (entry.count >= 3 && !entry.notified) {
+    entry.notified = true;
+    notify(
+      "error",
+      `Whitelist is not applying for ${username}`,
+      `The server keeps rejecting the entry after several retries (${message}). ` +
+        `Check the Console page and docs/troubleshooting.md — the panel will keep retrying meanwhile.`
+    );
+  }
+  healFailures.set(username, entry);
+}
+
 async function reconcile() {
   const pending = db()
     .prepare("SELECT * FROM approved_players WHERE status = 'pending'")
@@ -183,14 +204,23 @@ async function reconcile() {
     const live = new Set((await whitelistLive()).map((n) => n.toLowerCase()));
     const missing = pending.filter((p) => !live.has(p.username.toLowerCase()));
     if (missing.length > 0) {
-      for (const p of missing) await whitelistAdd(p.username); // rewrites file + reloads
+      let healed = true;
+      for (const p of missing) {
+        try {
+          await whitelistAdd(p.username); // rewrites files + reloads + verifies
+        } catch (err) {
+          healed = false;
+          reportHealFailure(p.username, (err as Error).message);
+        }
+      }
       // They couldn't have joined yet — give the windows back the lost time.
       db()
         .prepare("UPDATE approved_players SET window_expires_at = window_expires_at + 5000 WHERE status = 'pending'")
         .run();
-      logActivity("whitelist_heal", null, missing.map((m) => m.username).join(", "));
+      if (healed) logActivity("whitelist_heal", null, missing.map((m) => m.username).join(", "));
       return;
     }
+    healFailures.clear(); // whitelist is consistent again
   } catch {
     // whitelist list unavailable — fall through and try again next tick
   }

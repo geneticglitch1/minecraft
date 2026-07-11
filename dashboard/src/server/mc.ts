@@ -65,42 +65,83 @@ export function offlineUuid(name: string): string {
 
 type WhitelistEntry = { uuid: string; name: string };
 
-function whitelistPath(): string {
-  return path.join(env.mcDataDir, "whitelist.json");
-}
+// 26.x renamed server files as part of the registry cleanup; startup still
+// migrates the legacy name but `whitelist reload` and shutdown saves use the
+// new one. Writing both keeps every code path in agreement on any version.
+const WHITELIST_FILES = ["allowlist.json", "whitelist.json"];
 
 function readWhitelistFile(): WhitelistEntry[] {
-  try {
-    const data = JSON.parse(fs.readFileSync(whitelistPath(), "utf8"));
-    return Array.isArray(data) ? (data as WhitelistEntry[]) : [];
-  } catch {
-    return [];
+  const byName = new Map<string, WhitelistEntry>();
+  for (const file of WHITELIST_FILES) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(env.mcDataDir, file), "utf8"));
+      if (Array.isArray(data)) {
+        for (const e of data as WhitelistEntry[]) {
+          if (e?.name && !byName.has(e.name.toLowerCase())) byName.set(e.name.toLowerCase(), e);
+        }
+      }
+    } catch {}
   }
+  return [...byName.values()];
 }
 
 function writeWhitelistFile(entries: WhitelistEntry[]) {
-  fs.writeFileSync(whitelistPath(), JSON.stringify(entries, null, 2) + "\n");
-  try {
-    fs.chownSync(whitelistPath(), 1000, 1000); // keep it writable by the MC user
-  } catch {}
+  const json = JSON.stringify(entries, null, 2) + "\n";
+  for (const file of WHITELIST_FILES) {
+    const p = path.join(env.mcDataDir, file);
+    fs.writeFileSync(p, json);
+    try {
+      fs.chownSync(p, 1000, 1000); // keep it writable by the MC user
+    } catch {}
+  }
 }
 
 async function reloadWhitelist(): Promise<void> {
   await rcon().exec("whitelist reload");
 }
 
+/**
+ * UUIDs the server itself reported in log lines ("UUID of player X is …").
+ * These beat any derivation we could do — if Mojang changes the offline-UUID
+ * scheme again, the panel adapts automatically.
+ */
+const observedUuids = new Map<string, string>();
+
+export function noteObservedUuid(name: string, uuid: string) {
+  observedUuids.set(name.toLowerCase(), uuid.toLowerCase());
+}
+
 export async function whitelistAdd(name: string): Promise<string> {
   assertValidUsername(name);
+  const uuid = observedUuids.get(name.toLowerCase()) ?? offlineUuid(name);
   const entries = readWhitelistFile().filter((e) => e.name.toLowerCase() !== name.toLowerCase());
-  entries.push({ uuid: offlineUuid(name), name });
+  entries.push({ uuid, name });
   writeWhitelistFile(entries);
   await reloadWhitelist();
-  return `Added ${name} to the whitelist (offline UUID)`;
+
+  // Trust nothing: confirm the server actually loaded the entry.
+  let live = await whitelistLive();
+  if (live.some((n) => n.toLowerCase() === name.toLowerCase())) {
+    return `Added ${name} to the whitelist`;
+  }
+  // File route didn't take — fall back to the vanilla command (in-memory,
+  // applies instantly) and re-verify.
+  const out = stripColors(await rcon().exec(`whitelist add ${name}`));
+  live = await whitelistLive();
+  if (live.some((n) => n.toLowerCase() === name.toLowerCase())) {
+    return `Added ${name} to the whitelist (via command)`;
+  }
+  throw new Error(
+    `The server did not accept the whitelist entry for ${name} (reload + command both failed: ${out.trim() || "no output"})`
+  );
 }
 
 export async function whitelistRemove(name: string): Promise<string> {
   assertValidUsername(name);
   writeWhitelistFile(readWhitelistFile().filter((e) => e.name.toLowerCase() !== name.toLowerCase()));
+  try {
+    await rcon().exec(`whitelist remove ${name}`); // clears any in-memory entry
+  } catch {}
   await reloadWhitelist();
   return `Removed ${name} from the whitelist`;
 }
