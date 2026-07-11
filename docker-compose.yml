@@ -48,6 +48,8 @@ services:
       TZ: ${TZ:-UTC}
     ports:
       - "${MC_PORT:-25565}:25565"
+      # BlueMap web map (only active if the bluemap mod is installed)
+      - "${MAP_PORT:-8100}:8100"
     volumes:
       - ./data/mc:/data
     mem_limit: ${MC_CONTAINER_MEM_LIMIT:-7g}

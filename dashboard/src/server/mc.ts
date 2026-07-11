@@ -205,8 +205,43 @@ export async function pardonIp(ip: string): Promise<string> {
 
 const GAMEMODES = new Set(["survival", "creative", "adventure", "spectator"]);
 const DIFFICULTIES = new Set(["peaceful", "easy", "normal", "hard"]);
-/** Gamerules the panel exposes as toggles. */
-export const TOGGLE_GAMERULES = ["keepInventory", "mobGriefing", "doDaylightCycle", "doWeatherCycle", "pvp"] as const;
+
+/**
+ * Gamerules the panel exposes as toggles. Minecraft 26.x renamed every rule
+ * to snake_case (keepInventory → keep_inventory, doDaylightCycle →
+ * advance_time, ...) with old names deprecated — so each toggle carries
+ * candidate names and the working one is resolved against the live server
+ * and cached.
+ */
+export const TOGGLE_GAMERULES: Record<string, string[]> = {
+  keep_inventory: ["keep_inventory", "keepInventory"],
+  mob_griefing: ["mob_griefing", "mobGriefing"],
+  advance_time: ["advance_time", "doDaylightCycle"],
+  advance_weather: ["advance_weather", "weather_cycle", "doWeatherCycle"],
+  pvp: ["pvp"],
+};
+
+const resolvedRuleNames = new Map<string, string>();
+
+/** Query one gamerule, returning its value and the name that worked. */
+async function queryGamerule(key: string): Promise<{ name: string; value: boolean } | null> {
+  const cached = resolvedRuleNames.get(key);
+  const candidates = cached ? [cached] : TOGGLE_GAMERULES[key];
+  for (const name of candidates) {
+    try {
+      const out = stripColors(await rcon().exec(`gamerule ${name}`));
+      const m = out.match(/\b(true|false)\b/i);
+      if (m) {
+        resolvedRuleNames.set(key, name);
+        return { name, value: m[1].toLowerCase() === "true" };
+      }
+    } catch {
+      return null; // RCON down — no point trying other names
+    }
+  }
+  if (cached) resolvedRuleNames.delete(key); // cached name stopped working (version change)
+  return null;
+}
 
 export async function setGamemode(name: string, mode: string): Promise<string> {
   assertValidUsername(name);
@@ -236,19 +271,64 @@ export async function setDifficulty(value: string): Promise<string> {
 
 export async function getGamerules(): Promise<Record<string, boolean>> {
   const out: Record<string, boolean> = {};
-  for (const rule of TOGGLE_GAMERULES) {
-    try {
-      const res = stripColors(await rcon().exec(`gamerule ${rule}`));
-      const m = res.match(/\b(true|false)\b/i);
-      if (m) out[rule] = m[1].toLowerCase() === "true";
-    } catch {}
+  for (const key of Object.keys(TOGGLE_GAMERULES)) {
+    const res = await queryGamerule(key);
+    if (res) out[key] = res.value;
   }
   return out;
 }
 
-export async function setGamerule(rule: string, value: boolean): Promise<string> {
-  if (!(TOGGLE_GAMERULES as readonly string[]).includes(rule)) throw new Error("Gamerule not allowed");
-  return stripColors(await rcon().exec(`gamerule ${rule} ${value}`));
+/** Set a gamerule and verify the server actually applied it. */
+export async function setGamerule(key: string, value: boolean): Promise<boolean> {
+  if (!(key in TOGGLE_GAMERULES)) throw new Error("Gamerule not allowed");
+  const before = await queryGamerule(key);
+  if (!before) {
+    throw new Error(`The server doesn't recognize this gamerule (tried: ${TOGGLE_GAMERULES[key].join(", ")})`);
+  }
+  const setOut = stripColors(await rcon().exec(`gamerule ${before.name} ${value}`));
+  const after = await queryGamerule(key);
+  if (!after || after.value !== value) {
+    throw new Error(`Server refused the change: ${setOut.trim() || "no response"}`);
+  }
+  return after.value;
+}
+
+/** Run a command and throw if the server's reply reads like a command error. */
+async function execChecked(command: string): Promise<string> {
+  const out = stripColors(await rcon().exec(command));
+  if (/unknown|incorrect|expected|invalid|no (?:player|entity) was found/i.test(out)) {
+    throw new Error(out.trim().slice(0, 200));
+  }
+  return out;
+}
+
+/** Full-screen title (with chat fallback text left to the caller). */
+export async function broadcastTitle(message: string): Promise<void> {
+  const json = JSON.stringify({ text: message.slice(0, 100), color: "green" });
+  await execChecked(`title @a title ${json}`);
+}
+
+const ITEM_ID_RE = /^[a-z0-9_]+(:[a-z0-9_/]+)?$/;
+
+export async function giveItem(name: string, item: string, count: number): Promise<string> {
+  assertValidUsername(name);
+  const id = item.trim().toLowerCase();
+  if (!ITEM_ID_RE.test(id)) throw new Error("Invalid item id (e.g. diamond or minecraft:cooked_beef)");
+  const n = Math.max(1, Math.min(Math.floor(count) || 1, 6400));
+  return execChecked(`give ${name} ${id} ${n}`);
+}
+
+export async function teleportToPlayer(name: string, target: string): Promise<string> {
+  assertValidUsername(name);
+  assertValidUsername(target);
+  return execChecked(`tp ${name} ${target}`);
+}
+
+/** Top up health and food — the classic admin favor. */
+export async function healPlayer(name: string): Promise<void> {
+  assertValidUsername(name);
+  await execChecked(`effect give ${name} minecraft:instant_health 1 10`);
+  await execChecked(`effect give ${name} minecraft:saturation 1 10`);
 }
 
 export async function kickAll(reason: string): Promise<number> {

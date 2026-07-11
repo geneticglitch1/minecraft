@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Sun, Moon, CloudSun, CloudRain, Megaphone } from "lucide-react";
+import { Sun, Moon, CloudSun, CloudRain, Megaphone, Monitor } from "lucide-react";
 import { api, useApi, toast } from "@/lib/api";
 import { Card, Button, Input, Select, Toggle } from "@/components/ui";
 
+// Canonical 26.x snake_case keys; the backend resolves old camelCase names
+// automatically on older servers.
 const GAMERULE_LABELS: Record<string, string> = {
-  keepInventory: "Keep inventory on death",
-  mobGriefing: "Mob griefing (creeper damage…)",
-  doDaylightCycle: "Day/night cycle",
-  doWeatherCycle: "Weather cycle",
+  keep_inventory: "Keep inventory on death",
+  mob_griefing: "Mob griefing (creeper damage…)",
+  advance_time: "Day/night cycle",
+  advance_weather: "Weather cycle",
   pvp: "PvP",
 };
 
@@ -18,6 +20,7 @@ export function QuickControls({ running }: { running: boolean }) {
   const { data, refresh } = useApi<{ gamerules: Record<string, boolean> }>("/api/admin", 0);
   const [busy, setBusy] = useState<string | null>(null);
   const [broadcast, setBroadcast] = useState("");
+  const [broadcastStyle, setBroadcastStyle] = useState<"chat" | "title">("chat");
   const [difficulty, setDifficulty] = useState("");
 
   const run = async (label: string, body: Record<string, unknown>, message?: string) => {
@@ -28,12 +31,26 @@ export function QuickControls({ running }: { running: boolean }) {
       void refresh();
     } catch (err) {
       toast((err as Error).message, "error");
+      void refresh();
     } finally {
       setBusy(null);
     }
   };
 
+  const sendBroadcast = () => {
+    if (!broadcast.trim()) return;
+    void run(
+      "broadcast",
+      { op: "broadcast", message: broadcast, style: broadcastStyle },
+      broadcastStyle === "title" ? "Title shown to everyone" : "Broadcast sent"
+    );
+    setBroadcast("");
+  };
+
   if (!running) return null;
+
+  const rules = data?.gamerules ?? {};
+  const rulesLoaded = Object.keys(rules).length > 0;
 
   return (
     <Card title="Quick controls">
@@ -69,43 +86,51 @@ export function QuickControls({ running }: { running: boolean }) {
         </div>
 
         {/* gamerules */}
-        <div className="grid grid-cols-1 gap-2 border-t border-border pt-3 sm:grid-cols-2">
-          {Object.entries(GAMERULE_LABELS).map(([rule, label]) => (
-            <Toggle
-              key={rule}
-              checked={data?.gamerules[rule] ?? false}
-              onChange={(v) => void run(`rule-${rule}`, { op: "gamerule", rule, value: v }, `${label}: ${v ? "on" : "off"}`)}
-              label={label}
-            />
-          ))}
+        <div className="border-t border-border pt-3">
+          {!rulesLoaded ? (
+            <p className="text-xs text-muted">Reading gamerules from the server…</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {Object.entries(GAMERULE_LABELS).map(([rule, label]) =>
+                rule in rules ? (
+                  <Toggle
+                    key={rule}
+                    checked={rules[rule]}
+                    onChange={(v) =>
+                      void run(`rule-${rule}`, { op: "gamerule", rule, value: v }, `${label}: ${v ? "on" : "off"}`)
+                    }
+                    label={label}
+                  />
+                ) : null
+              )}
+            </div>
+          )}
         </div>
 
         {/* broadcast */}
         <div className="flex gap-2 border-t border-border pt-3">
+          <Select
+            value={broadcastStyle}
+            onChange={(v) => setBroadcastStyle(v as "chat" | "title")}
+            options={[
+              { value: "chat", label: "💬 chat" },
+              { value: "title", label: "🖥 big title" },
+            ]}
+          />
           <Input
             value={broadcast}
             onChange={(e) => setBroadcast(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && broadcast.trim()) {
-                void run("broadcast", { op: "broadcast", message: broadcast }, "Broadcast sent");
-                setBroadcast("");
-              }
-            }}
-            placeholder="Broadcast a message to everyone…"
+            onKeyDown={(e) => e.key === "Enter" && sendBroadcast()}
+            placeholder={
+              broadcastStyle === "title"
+                ? "Show a message across everyone's screen…"
+                : "Broadcast a chat message to everyone…"
+            }
             className="flex-1"
             maxLength={256}
           />
-          <Button
-            size="sm"
-            variant="primary"
-            disabled={!broadcast.trim()}
-            busy={busy === "broadcast"}
-            onClick={() => {
-              void run("broadcast", { op: "broadcast", message: broadcast }, "Broadcast sent");
-              setBroadcast("");
-            }}
-          >
-            <Megaphone size={12} /> Send
+          <Button size="sm" variant="primary" disabled={!broadcast.trim()} busy={busy === "broadcast"} onClick={sendBroadcast}>
+            {broadcastStyle === "title" ? <Monitor size={12} /> : <Megaphone size={12} />} Send
           </Button>
         </div>
       </div>

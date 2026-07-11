@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Play, Square, RotateCw, HardDrive, Globe2, Cuboid } from "lucide-react";
+import { Play, Square, RotateCw, HardDrive, Globe2, Cuboid, Map } from "lucide-react";
 import { api, useApi, useSSE, toast } from "@/lib/api";
 import { Card, StatTile, Button, Badge, EmptyState } from "@/components/ui";
 import { Sparkline, UsageBar, type Point } from "@/components/charts";
@@ -17,6 +17,7 @@ type ServerData = {
   serverType: string | null;
   metrics: Record<string, number | null> | null;
   pendingApprovals: number;
+  map: { available: boolean; port: number };
   world: { seed: string | null; sizeBytes: number | null; dimensions: string[]; levelName: string | null };
   uptimeMs: number | null;
 };
@@ -253,6 +254,18 @@ export default function OverviewPage() {
                   <span className="text-ink2">Seed</span>
                   <span className="ml-auto font-mono text-xs">{server.world.seed}</span>
                 </div>
+              )}
+              {server?.map.available && (
+                <a
+                  href={`http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:${server.map.port}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-3 rounded-lg border border-accent-deep/40 bg-accent/10 px-3 py-2 text-sm text-accent hover:bg-accent/20"
+                >
+                  <Map size={15} />
+                  <span className="font-medium">Open the live world map</span>
+                  <span className="ml-auto text-xs">BlueMap ↗</span>
+                </a>
               )}
               <div className="pt-1">
                 {m?.disk_used != null && m?.disk_free != null ? (

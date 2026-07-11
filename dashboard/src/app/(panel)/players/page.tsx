@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Users, UserX, Wifi, Crown, Gavel } from "lucide-react";
+import { Users, UserX, Wifi, Crown, Gavel, HeartPulse, MapPin, Gift } from "lucide-react";
 import { api, useApi, useSSE, toast } from "@/lib/api";
-import { Card, Badge, Button, EmptyState, Modal } from "@/components/ui";
+import { Card, Badge, Button, EmptyState, Modal, Input, Select } from "@/components/ui";
 import { timeAgo, fmtDateTime } from "@/lib/format";
 
 type PlayerRow = {
@@ -32,6 +32,9 @@ export default function PlayersPage() {
   const [detail, setDetail] = useState<PlayerRow | null>(null);
   const [kicking, setKicking] = useState<string | null>(null);
   const [adminBusy, setAdminBusy] = useState<string | null>(null);
+  const [tpTarget, setTpTarget] = useState("");
+  const [giveItemId, setGiveItemId] = useState("");
+  const [giveCount, setGiveCount] = useState("1");
 
   const adminAction = async (label: string, body: Record<string, unknown>, message: string) => {
     setAdminBusy(label);
@@ -81,6 +84,7 @@ export default function PlayersPage() {
 
   const players = data?.players ?? [];
   const online = players.filter((p) => p.isOnline);
+  const onlineNames = data?.online ?? [];
   const joinEvents = (joins ?? []).filter((j) => ["join", "leave", "connect"].includes(j.type));
 
   const pingBadge = (ping: number | null) => {
@@ -257,6 +261,74 @@ export default function PlayersPage() {
                 <Gavel size={12} /> Ban
               </Button>
             </div>
+
+            {/* creative admin favors (online players only) */}
+            {detail.isOnline && (
+              <div className="mt-3 space-y-2 border-t border-border pt-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    busy={adminBusy === "heal"}
+                    onClick={() => void adminAction("heal", { op: "heal", name: detail.name }, `${detail.name} healed & fed`)}
+                  >
+                    <HeartPulse size={12} /> Heal
+                  </Button>
+                  {onlineNames.filter((n) => n !== detail.name).length > 0 && (
+                    <>
+                      <span className="mx-1 h-4 w-px bg-border" />
+                      <Select
+                        value={tpTarget}
+                        onChange={setTpTarget}
+                        options={[
+                          { value: "", label: "teleport to…" },
+                          ...onlineNames.filter((n) => n !== detail.name).map((n) => ({ value: n, label: n })),
+                        ]}
+                      />
+                      <Button
+                        size="sm"
+                        disabled={!tpTarget}
+                        busy={adminBusy === "tp"}
+                        onClick={() =>
+                          void adminAction("tp", { op: "teleport", name: detail.name, target: tpTarget }, `${detail.name} → ${tpTarget}`)
+                        }
+                      >
+                        <MapPin size={12} /> Teleport
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Input
+                    value={giveItemId}
+                    onChange={(e) => setGiveItemId(e.target.value)}
+                    placeholder="item id, e.g. diamond"
+                    className="w-44 font-mono text-xs"
+                  />
+                  <Input
+                    type="number"
+                    min={1}
+                    max={6400}
+                    value={giveCount}
+                    onChange={(e) => setGiveCount(e.target.value)}
+                    className="w-20 font-mono text-xs"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={!giveItemId.trim()}
+                    busy={adminBusy === "give"}
+                    onClick={() =>
+                      void adminAction(
+                        "give",
+                        { op: "give", name: detail.name, item: giveItemId.trim(), count: Number(giveCount) || 1 },
+                        `Gave ${detail.name} ${giveCount}× ${giveItemId.trim()}`
+                      )
+                    }
+                  >
+                    <Gift size={12} /> Give
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Modal>

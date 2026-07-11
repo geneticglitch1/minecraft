@@ -35,6 +35,32 @@ const PROTECTED = new Set(["fabric-api", "easyauth"]);
 // by the base slug.
 const baseSlug = (entry: string) => entry.split(":")[0].toLowerCase();
 
+// Server-side-only picks that make an offline friends server nicer — no
+// client installs needed. All verified compatible with Fabric 26.2.
+const FEATURED = [
+  {
+    slug: "bluemap",
+    emoji: "🗺",
+    title: "BlueMap",
+    description:
+      "Explorable 3D web map of your world, like Google Maps for the server. After installing, the map appears on the Overview page.",
+  },
+  {
+    slug: "skinrestorer",
+    emoji: "🎭",
+    title: "SkinRestorer",
+    description:
+      "Offline-mode servers show everyone as Steve — this restores real skins by username, TLauncher players included.",
+  },
+  {
+    slug: "chunky",
+    emoji: "⚡",
+    title: "Chunky",
+    description:
+      "Pre-generates the world around spawn so nobody lags exploring new chunks. Run `chunky radius 2000` then `chunky start` in Console.",
+  },
+];
+
 export default function ModsPage() {
   const { data, refresh } = useApi<ModsData>("/api/mods", 0);
   const [query, setQuery] = useState("");
@@ -101,6 +127,33 @@ export default function ModsPage() {
           <RefreshCw size={14} /> {needsApply ? "Apply changes (restarts server)" : "Update all & restart"}
         </Button>
       </div>
+
+      {/* featured picks */}
+      <Card title="Recommended for this server">
+        <div className="grid gap-2 sm:grid-cols-3">
+          {FEATURED.map((f) => {
+            const already = managedSet.has(f.slug);
+            return (
+              <div key={f.slug} className="flex flex-col gap-1.5 rounded-lg border border-border bg-surface2 p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">{f.emoji}</span>
+                  <span className="text-sm font-medium">{f.title}</span>
+                </div>
+                <p className="flex-1 text-[11px] leading-relaxed text-muted">{f.description}</p>
+                <Button
+                  size="sm"
+                  variant={already ? "ghost" : "primary"}
+                  disabled={already}
+                  busy={busy === `add-${f.slug}`}
+                  onClick={() => void manage(`add-${f.slug}`, { op: "add", slug: f.slug }, `${f.title} added — hit Apply to install`)}
+                >
+                  <Download size={12} /> {already ? "Installed" : "Add"}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Modrinth search */}

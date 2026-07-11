@@ -4,9 +4,25 @@ import { db } from "@/server/db";
 import { env } from "@/server/env";
 import { getWorldSizeBytes } from "@/server/sampler";
 import { readWorldInfo } from "@/server/playerstats";
+import { readEnvFile } from "@/server/envfile";
 import { ok, handle } from "@/server/api";
 
 export const dynamic = "force-dynamic";
+
+// BlueMap detection (in-network probe of the mc container), cached 60 s.
+let mapCheck: { at: number; available: boolean } = { at: 0, available: false };
+
+async function bluemapAvailable(running: boolean): Promise<boolean> {
+  if (!running) return false;
+  if (Date.now() - mapCheck.at < 60_000) return mapCheck.available;
+  let available = false;
+  try {
+    const res = await fetch(`http://${env.mcContainer}:8100/`, { signal: AbortSignal.timeout(1500) });
+    available = res.ok;
+  } catch {}
+  mapCheck = { at: Date.now(), available };
+  return available;
+}
 
 export async function GET() {
   return handle(async () => {
@@ -49,6 +65,10 @@ export async function GET() {
       serverType,
       metrics: latest ?? null,
       pendingApprovals: pendingCount,
+      map: {
+        available: await bluemapAvailable(container.running),
+        port: Number(readEnvFile()["MAP_PORT"]) || 8100,
+      },
       world: readWorldInfo(getWorldSizeBytes()),
       uptimeMs:
         container.running && "startedAt" in container && container.startedAt

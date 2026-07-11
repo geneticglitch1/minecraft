@@ -8,6 +8,10 @@ import {
   getGamerules,
   setGamerule,
   say,
+  broadcastTitle,
+  giveItem,
+  teleportToPlayer,
+  healPlayer,
 } from "@/server/mc";
 import { logActivity } from "@/server/db";
 import { ok, fail, readJson, handle } from "@/server/api";
@@ -28,7 +32,10 @@ type Body =
   | { op: "weather"; value: "clear" | "rain" | "thunder" }
   | { op: "difficulty"; value: string }
   | { op: "gamerule"; rule: string; value: boolean }
-  | { op: "broadcast"; message: string };
+  | { op: "broadcast"; message: string; style?: "chat" | "title" }
+  | { op: "give"; name: string; item: string; count?: number }
+  | { op: "teleport"; name: string; target: string }
+  | { op: "heal"; name: string };
 
 export async function POST(req: NextRequest) {
   return handle(async () => {
@@ -56,13 +63,33 @@ export async function POST(req: NextRequest) {
         return ok({ output: out });
       }
       case "gamerule": {
-        const out = await setGamerule(body.rule, body.value);
+        const applied = await setGamerule(body.rule, body.value);
         logActivity("admin", null, `gamerule ${body.rule} ${body.value}`);
-        return ok({ output: out });
+        return ok({ value: applied });
       }
       case "broadcast": {
         if (!body.message?.trim()) return fail("Empty message");
-        await say(body.message.trim().slice(0, 256));
+        const message = body.message.trim().slice(0, 256);
+        if (body.style === "title") {
+          await broadcastTitle(message);
+        } else {
+          await say(message);
+        }
+        return ok({});
+      }
+      case "give": {
+        const out = await giveItem(body.name, body.item, body.count ?? 1);
+        logActivity("admin", body.name, `give ${body.item} ×${body.count ?? 1}`);
+        return ok({ output: out });
+      }
+      case "teleport": {
+        const out = await teleportToPlayer(body.name, body.target);
+        logActivity("admin", body.name, `tp → ${body.target}`);
+        return ok({ output: out });
+      }
+      case "heal": {
+        await healPlayer(body.name);
+        logActivity("admin", body.name, "heal");
         return ok({});
       }
       default:
