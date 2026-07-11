@@ -6,6 +6,7 @@ import { Play, Square, RotateCw, HardDrive, Globe2, Cuboid } from "lucide-react"
 import { api, useApi, useSSE, toast } from "@/lib/api";
 import { Card, StatTile, Button, Badge, EmptyState } from "@/components/ui";
 import { Sparkline, UsageBar, type Point } from "@/components/charts";
+import { QuickControls } from "@/components/quickcontrols";
 import { fmtBytes, fmtDuration, timeAgo, fmtCountdown } from "@/lib/format";
 
 type ServerData = {
@@ -50,6 +51,15 @@ const ACTIVITY_LABELS: Record<string, { label: string; color: "good" | "warn" | 
   power: { label: "power", color: "muted" },
   console: { label: "console", color: "muted" },
   world_reset: { label: "world reset", color: "crit" },
+  blocked: { label: "blocked", color: "crit" },
+  ban: { label: "banned", color: "crit" },
+  ban_ip: { label: "IP banned", color: "crit" },
+  pardon: { label: "unbanned", color: "info" },
+  pardon_ip: { label: "IP unbanned", color: "info" },
+  kick_all: { label: "kicked all", color: "warn" },
+  admin: { label: "admin", color: "info" },
+  whitelist_heal: { label: "whitelist re-synced", color: "warn" },
+  password_reset: { label: "password reset", color: "info" },
 };
 
 export default function OverviewPage() {
@@ -217,6 +227,9 @@ export default function OverviewPage() {
               </p>
             </Card>
           )}
+
+          {/* admin quick controls */}
+          <QuickControls running={running} />
 
           {/* world + disk */}
           <Card title="World & storage">

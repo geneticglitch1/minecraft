@@ -9,8 +9,10 @@ import { fmtBytes } from "@/lib/format";
 type Settings = {
   registrationWindowMinutes: number;
   notifyJoins: boolean;
+  notifyBlocked: boolean;
   discordEnabled: boolean;
   discordJoins: boolean;
+  discordBlocked: boolean;
   discordWebhookUrl: string;
 };
 
@@ -156,6 +158,11 @@ export default function SettingsPage() {
               onChange={(v) => setValues((s) => (s ? { ...s, notifyJoins: v } : s))}
               label="Notify on player joins/leaves"
             />
+            <Toggle
+              checked={values?.notifyBlocked ?? true}
+              onChange={(v) => setValues((s) => (s ? { ...s, notifyBlocked: v } : s))}
+              label="Notify on blocked join attempts (bots/strangers)"
+            />
           </div>
         </Card>
 
@@ -183,6 +190,11 @@ export default function SettingsPage() {
               checked={values?.discordJoins ?? true}
               onChange={(v) => setValues((s) => (s ? { ...s, discordJoins: v } : s))}
               label="Include joins/leaves"
+            />
+            <Toggle
+              checked={values?.discordBlocked ?? true}
+              onChange={(v) => setValues((s) => (s ? { ...s, discordBlocked: v } : s))}
+              label="Include blocked join attempts"
             />
             <Button
               size="sm"

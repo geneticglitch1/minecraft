@@ -24,6 +24,19 @@ function messageOf(line: string): string {
   return m ? m[1] : line;
 }
 
+// Bots hammer the port — notify at most once per name+IP per 10 minutes.
+// (Every attempt is still recorded in the activity feed.)
+const blockedNotifyAt = new Map<string, number>();
+
+function shouldNotifyBlocked(key: string): boolean {
+  const now = Date.now();
+  const last = blockedNotifyAt.get(key) ?? 0;
+  if (now - last < 10 * 60 * 1000) return false;
+  blockedNotifyAt.set(key, now);
+  if (blockedNotifyAt.size > 500) blockedNotifyAt.clear();
+  return true;
+}
+
 function parseEvent(line: string, backfill: boolean) {
   const msg = messageOf(line).replace(/§[0-9a-fk-or]/gi, "");
 
@@ -54,7 +67,23 @@ function parseEvent(line: string, backfill: boolean) {
   };
 
   let m;
-  if ((m = msg.match(/^([A-Za-z0-9_]{3,16}) joined the game/))) {
+  if (
+    (m = msg.match(
+      /^Disconnecting ([A-Za-z0-9_]{3,16}) \(\/([0-9a-fA-F.:]+):\d+\): (You are not white-listed[^!]*!?|.*banned.*)/i
+    ))
+  ) {
+    // Somebody the panel never approved knocked on the door (usually an
+    // internet scanner bot). Record it so the admin can see and IP-ban them.
+    if (!backfill) {
+      logActivity("blocked", m[1], m[2]);
+      bus().emit("mc-event", { ts: Date.now(), type: "blocked", player: m[1], detail: m[2] });
+      if (getBoolSetting("notify_blocked", true) && shouldNotifyBlocked(`${m[1]}@${m[2]}`)) {
+        notify("warn", `Blocked join attempt: ${m[1]}`, `From ${m[2]} — ${m[3]}`, {
+          discord: getBoolSetting("discord_blocked", true),
+        });
+      }
+    }
+  } else if ((m = msg.match(/^([A-Za-z0-9_]{3,16}) joined the game/))) {
     emit("join", m[1]);
   } else if ((m = msg.match(/^([A-Za-z0-9_]{3,16}) left the game/))) {
     emit("leave", m[1]);

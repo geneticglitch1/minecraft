@@ -125,6 +125,142 @@ export async function whitelistList(): Promise<string[]> {
   }
 }
 
+/**
+ * The server's *live* whitelist (what it actually enforces), as opposed to
+ * the file. Used by the auth watcher to detect a missed `whitelist reload`
+ * and heal it.
+ */
+export async function whitelistLive(): Promise<string[]> {
+  const out = stripColors(await rcon().exec("whitelist list"));
+  const colon = out.indexOf(":");
+  if (colon < 0) return [];
+  return out
+    .slice(colon + 1)
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => NAME_RE.test(s));
+}
+
+export { reloadWhitelist };
+
+// ── bans ────────────────────────────────────────────────────────────────
+//
+// Ban/pardon go through the vanilla commands: for players who have joined
+// before (the realistic case) the server already knows their offline UUID
+// via usercache. IP bans take raw addresses and always work.
+
+export type BanEntry = { name?: string; ip?: string; created?: string; reason?: string; source?: string };
+
+function readBanFile(file: string): BanEntry[] {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(env.mcDataDir, file), "utf8"));
+    return Array.isArray(data) ? (data as BanEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function listBans(): { players: BanEntry[]; ips: BanEntry[] } {
+  return {
+    players: readBanFile("banned-players.json"),
+    ips: readBanFile("banned-ips.json"),
+  };
+}
+
+const IP_RE = /^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]+$/;
+
+function assertValidIp(ip: string) {
+  if (!IP_RE.test(ip)) throw new Error(`Invalid IP address: ${ip}`);
+}
+
+function sanitizeReason(reason: string): string {
+  return reason.replace(/[\r\n]/g, " ").slice(0, 120);
+}
+
+export async function banPlayer(name: string, reason = "Banned by the admin"): Promise<string> {
+  assertValidUsername(name);
+  const out = stripColors(await rcon().exec(`ban ${name} ${sanitizeReason(reason)}`));
+  try {
+    await kickPlayer(name, reason);
+  } catch {}
+  return out;
+}
+
+export async function pardonPlayer(name: string): Promise<string> {
+  assertValidUsername(name);
+  return stripColors(await rcon().exec(`pardon ${name}`));
+}
+
+export async function banIp(ip: string, reason = "Banned by the admin"): Promise<string> {
+  assertValidIp(ip);
+  return stripColors(await rcon().exec(`ban-ip ${ip} ${sanitizeReason(reason)}`));
+}
+
+export async function pardonIp(ip: string): Promise<string> {
+  assertValidIp(ip);
+  return stripColors(await rcon().exec(`pardon-ip ${ip}`));
+}
+
+// ── admin controls ──────────────────────────────────────────────────────
+
+const GAMEMODES = new Set(["survival", "creative", "adventure", "spectator"]);
+const DIFFICULTIES = new Set(["peaceful", "easy", "normal", "hard"]);
+/** Gamerules the panel exposes as toggles. */
+export const TOGGLE_GAMERULES = ["keepInventory", "mobGriefing", "doDaylightCycle", "doWeatherCycle", "pvp"] as const;
+
+export async function setGamemode(name: string, mode: string): Promise<string> {
+  assertValidUsername(name);
+  if (!GAMEMODES.has(mode)) throw new Error("Invalid gamemode");
+  return stripColors(await rcon().exec(`gamemode ${mode} ${name}`));
+}
+
+export async function opPlayer(name: string, grant: boolean): Promise<string> {
+  assertValidUsername(name);
+  return stripColors(await rcon().exec(`${grant ? "op" : "deop"} ${name}`));
+}
+
+export async function setTime(value: "day" | "night" | "noon" | "midnight"): Promise<void> {
+  if (!["day", "night", "noon", "midnight"].includes(value)) throw new Error("Invalid time");
+  await rcon().exec(`time set ${value}`);
+}
+
+export async function setWeather(value: "clear" | "rain" | "thunder"): Promise<void> {
+  if (!["clear", "rain", "thunder"].includes(value)) throw new Error("Invalid weather");
+  await rcon().exec(`weather ${value}`);
+}
+
+export async function setDifficulty(value: string): Promise<string> {
+  if (!DIFFICULTIES.has(value)) throw new Error("Invalid difficulty");
+  return stripColors(await rcon().exec(`difficulty ${value}`));
+}
+
+export async function getGamerules(): Promise<Record<string, boolean>> {
+  const out: Record<string, boolean> = {};
+  for (const rule of TOGGLE_GAMERULES) {
+    try {
+      const res = stripColors(await rcon().exec(`gamerule ${rule}`));
+      const m = res.match(/\b(true|false)\b/i);
+      if (m) out[rule] = m[1].toLowerCase() === "true";
+    } catch {}
+  }
+  return out;
+}
+
+export async function setGamerule(rule: string, value: boolean): Promise<string> {
+  if (!(TOGGLE_GAMERULES as readonly string[]).includes(rule)) throw new Error("Gamerule not allowed");
+  return stripColors(await rcon().exec(`gamerule ${rule} ${value}`));
+}
+
+export async function kickAll(reason: string): Promise<number> {
+  const { names } = await listOnlinePlayers();
+  for (const name of names) {
+    try {
+      await kickPlayer(name, reason);
+    } catch {}
+  }
+  return names.length;
+}
+
 // ── EasyAuth ────────────────────────────────────────────────────────────
 
 /** Registered account names according to EasyAuth. */

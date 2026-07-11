@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Users, UserX, Wifi } from "lucide-react";
+import { Users, UserX, Wifi, Crown, Gavel } from "lucide-react";
 import { api, useApi, useSSE, toast } from "@/lib/api";
 import { Card, Badge, Button, EmptyState, Modal } from "@/components/ui";
 import { timeAgo, fmtDateTime } from "@/lib/format";
@@ -31,6 +31,33 @@ export default function PlayersPage() {
   const { data: joins, refresh: refreshJoins } = useApi<ActivityRow[]>("/api/activity?limit=30", 20000);
   const [detail, setDetail] = useState<PlayerRow | null>(null);
   const [kicking, setKicking] = useState<string | null>(null);
+  const [adminBusy, setAdminBusy] = useState<string | null>(null);
+
+  const adminAction = async (label: string, body: Record<string, unknown>, message: string) => {
+    setAdminBusy(label);
+    try {
+      await api("/api/admin", { body });
+      toast(message, "success");
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setAdminBusy(null);
+    }
+  };
+
+  const banPlayer = async (name: string) => {
+    setAdminBusy("ban");
+    try {
+      await api("/api/security", { body: { op: "ban-player", name, reason: "Banned by the admin" } });
+      toast(`${name} banned`, "warn");
+      setDetail(null);
+      void refresh();
+    } catch (err) {
+      toast((err as Error).message, "error");
+    } finally {
+      setAdminBusy(null);
+    }
+  };
 
   useSSE("/api/stream/events", {
     "mc-event": () => {
@@ -192,6 +219,43 @@ export default function PlayersPage() {
             <div className="mt-3 space-y-1 text-[11px] text-muted">
               <div>UUID: <code>{detail.uuid}</code></div>
               <div>Last seen: {detail.isOnline ? "online now" : fmtDateTime(detail.lastSeenAt)}</div>
+            </div>
+
+            {/* admin actions */}
+            <div className="mt-4 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
+              {detail.isOnline && (
+                <>
+                  {(["survival", "creative", "spectator"] as const).map((mode) => (
+                    <Button
+                      key={mode}
+                      size="sm"
+                      busy={adminBusy === `gm-${mode}`}
+                      onClick={() => void adminAction(`gm-${mode}`, { op: "gamemode", name: detail.name, mode }, `${detail.name} → ${mode}`)}
+                    >
+                      {mode}
+                    </Button>
+                  ))}
+                  <span className="mx-1 h-4 w-px bg-border" />
+                </>
+              )}
+              <Button
+                size="sm"
+                busy={adminBusy === "op"}
+                onClick={() => void adminAction("op", { op: "op", name: detail.name, grant: true }, `${detail.name} is now an operator`)}
+              >
+                <Crown size={12} /> Op
+              </Button>
+              <Button
+                size="sm"
+                busy={adminBusy === "deop"}
+                onClick={() => void adminAction("deop", { op: "op", name: detail.name, grant: false }, `${detail.name} de-opped`)}
+              >
+                De-op
+              </Button>
+              <span className="mx-1 h-4 w-px bg-border" />
+              <Button size="sm" variant="danger" busy={adminBusy === "ban"} onClick={() => void banPlayer(detail.name)}>
+                <Gavel size={12} /> Ban
+              </Button>
             </div>
           </div>
         )}

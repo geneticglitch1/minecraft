@@ -8,6 +8,7 @@ import {
   whitelistAdd,
   whitelistRemove,
   whitelistList,
+  whitelistLive,
   kickPlayer,
   easyauthList,
   easyauthRemove,
@@ -172,6 +173,26 @@ async function reconcile() {
       .prepare("UPDATE approved_players SET window_expires_at = window_expires_at + 5000 WHERE status = 'pending'")
       .run();
     return;
+  }
+
+  // Self-heal: make sure the server's LIVE whitelist actually contains every
+  // pending player. A `whitelist reload` can get lost (stale RCON connection,
+  // server restart mid-approval) — without this check the player sits at
+  // "You are not white-listed" while their window burns down.
+  try {
+    const live = new Set((await whitelistLive()).map((n) => n.toLowerCase()));
+    const missing = pending.filter((p) => !live.has(p.username.toLowerCase()));
+    if (missing.length > 0) {
+      for (const p of missing) await whitelistAdd(p.username); // rewrites file + reloads
+      // They couldn't have joined yet — give the windows back the lost time.
+      db()
+        .prepare("UPDATE approved_players SET window_expires_at = window_expires_at + 5000 WHERE status = 'pending'")
+        .run();
+      logActivity("whitelist_heal", null, missing.map((m) => m.username).join(", "));
+      return;
+    }
+  } catch {
+    // whitelist list unavailable — fall through and try again next tick
   }
 
   const now = Date.now();

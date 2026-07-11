@@ -137,7 +137,7 @@ class RconClient {
     if (next) next();
   }
 
-  exec(command: string): Promise<string> {
+  private execOnce(command: string): Promise<string> {
     return new Promise((resolve, reject) => {
       const run = async () => {
         try {
@@ -155,6 +155,9 @@ class RconClient {
           reject,
           hardTimer: setTimeout(() => {
             this.pending = null;
+            // A timeout usually means the connection went stale (server
+            // restarted, long idle). Drop it so the next attempt reconnects.
+            this.teardown();
             reject(new RconError("RCON command timeout", "timeout"));
             this.drain();
           }, 10_000),
@@ -164,6 +167,22 @@ class RconClient {
       if (this.pending || this.queue.length > 0) this.queue.push(run);
       else void run();
     });
+  }
+
+  /**
+   * Run a command, retrying once on a fresh connection if the first attempt
+   * fails. A panel that sits idle overnight often holds a dead TCP socket
+   * (server restart, container recreate) — the first write then times out or
+   * errors even though the server is fine.
+   */
+  async exec(command: string): Promise<string> {
+    try {
+      return await this.execOnce(command);
+    } catch (err) {
+      if (!(err instanceof RconError) || err.kind === "auth") throw err;
+      this.teardown();
+      return this.execOnce(command);
+    }
   }
 }
 

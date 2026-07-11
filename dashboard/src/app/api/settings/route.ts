@@ -12,8 +12,10 @@ export async function GET() {
         getSetting("registration_window_minutes", String(env.registrationWindowMinutes))
       ),
       notifyJoins: getBoolSetting("notify_joins", true),
+      notifyBlocked: getBoolSetting("notify_blocked", true),
       discordEnabled: getBoolSetting("discord_enabled", true),
       discordJoins: getBoolSetting("discord_joins", true),
+      discordBlocked: getBoolSetting("discord_blocked", true),
       discordWebhookUrl: getSetting("discord_webhook_url", env.discordWebhookUrl),
     });
   });
@@ -28,8 +30,10 @@ export async function POST(req: NextRequest) {
       setSetting("registration_window_minutes", String(n));
     }
     if (body.notifyJoins !== undefined) setSetting("notify_joins", body.notifyJoins ? "1" : "0");
+    if (body.notifyBlocked !== undefined) setSetting("notify_blocked", body.notifyBlocked ? "1" : "0");
     if (body.discordEnabled !== undefined) setSetting("discord_enabled", body.discordEnabled ? "1" : "0");
     if (body.discordJoins !== undefined) setSetting("discord_joins", body.discordJoins ? "1" : "0");
+    if (body.discordBlocked !== undefined) setSetting("discord_blocked", body.discordBlocked ? "1" : "0");
     if (body.discordWebhookUrl !== undefined) {
       const url = String(body.discordWebhookUrl);
       if (url && !/^https:\/\/(discord\.com|discordapp\.com)\/api\/webhooks\//.test(url)) {
