@@ -1,6 +1,8 @@
-# Minecraft 26.2 Fabric Server + CraftDeck Panel
+# Minecraft 26.3 Fabric Server + CraftDeck Panel
 
-A production-quality, self-hosted Minecraft **Java 26.2** server for friends:
+For Orion, use the managed deployment in **homelab-infra**, described in [docs/orion.md](docs/orion.md). The root Compose file is the standalone LAN setup; it is not the TCPShield ingress configuration.
+
+A production-quality, self-hosted Minecraft **Java 26.3** server for friends:
 
 - **Fabric** loader with invisible server-side performance mods — any vanilla client
   (including TLauncher) can join, no client mods needed
@@ -13,7 +15,7 @@ A production-quality, self-hosted Minecraft **Java 26.2** server for friends:
 
 | | |
 |---|---|
-| Minecraft | `26.2` (change one line to upgrade) |
+| Minecraft | `26.3` (review loader and all mod pins together) |
 | Loader | Fabric (NeoForge/Forge/vanilla supported via config) |
 | Server mods | Fabric API, EasyAuth, spark, Lithium, FerriteCore — auto-updated |
 | Panel | Next.js, port `8080`, LAN/VPN only |
@@ -76,7 +78,7 @@ they're ready. Full details: [docs/auth-flow.md](docs/auth-flow.md).
 
 ```
 docker-compose.yml
-├── mc         itzg/minecraft-server  (Fabric 26.2, offline mode, whitelist enforced,
+├── mc         itzg/minecraft-server  (Fabric 26.3, offline mode, whitelist enforced,
 │              RCON on the internal network only, mods resolved from Modrinth at start)
 ├── backup     itzg/mc-backup         (scheduled world tars + retention pruning)
 └── dashboard  ./dashboard            (CraftDeck: Next.js + node:sqlite; talks to the

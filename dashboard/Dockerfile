@@ -1,25 +1,25 @@
 # syntax=docker/dockerfile:1
 
-FROM node:26-slim AS deps
+FROM node:26-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM node:26-slim AS build
+FROM node:26-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
-FROM node:26-slim AS runtime
+FROM node:26-slim@sha256:ec7758ee051e457b468b32bde57b0879010b325bb9862718e9615225ce4aaae1 AS runtime
 ARG TARGETARCH=amd64
 ARG DOCKER_CLI_VERSION=27.5.1
 ARG COMPOSE_VERSION=v2.32.4
 
 # unzip: mod jar metadata · tar/gzip: backup restore · curl: healthcheck + installs
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl unzip tar gzip \
+ && apt-get install -y --no-install-recommends ca-certificates curl unzip tar gzip python3 \
  && rm -rf /var/lib/apt/lists/*
 
 # Docker CLI + compose plugin so the panel can recreate containers after
@@ -46,6 +46,7 @@ ENV NODE_ENV=production \
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
+COPY scripts/restore_data.py /app/restore_data.py
 
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \

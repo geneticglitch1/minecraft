@@ -60,15 +60,17 @@ const FEATURED = [
       "Pre-generates the world around spawn so nobody lags exploring new chunks. Run `chunky radius 2000` then `chunky start` in Console.",
   },
   {
-    slug: "proxy-protocol-support",
+    slug: "fabricproxy-lite",
     emoji: "🛡",
-    title: "Proxy Protocol Support",
+    title: "FabricProxy-Lite",
     description:
-      "Using TCPShield (or another proxy)? This restores players' real IPs so the Security page and IP bans work. Config is auto-enforced — see docs/tcpshield.md.",
+      "Velocity modern forwarding requires coordinated proxy and backend configuration. Follow docs/tcpshield.md before enabling.",
   },
 ];
 
 export default function ModsPage() {
+  const { data: deployment } = useApi<{ managed: boolean }>("/api/deployment");
+  const managed = deployment?.managed ?? true;
   const { data, refresh } = useApi<ModsData>("/api/mods", 0);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -127,10 +129,10 @@ export default function ModsPage() {
         <div>
           <h1 className="text-xl font-bold">Mods</h1>
           <p className="mt-0.5 text-xs text-ink2">
-            Managed mods auto-update to the newest build for Minecraft {data?.mcVersion ?? "…"} on every apply
+            {managed ? "Mod versions are locked by the reviewed deployment." : "Pinned Modrinth version IDs remain fixed when the server restarts."}
           </p>
         </div>
-        <Button variant={needsApply ? "primary" : "ghost"} onClick={() => setConfirmApply(true)} busy={applying}>
+        <Button disabled={managed} variant={needsApply ? "primary" : "ghost"} onClick={() => setConfirmApply(true)} busy={applying}>
           <RefreshCw size={14} /> {needsApply ? "Apply changes (restarts server)" : "Update all & restart"}
         </Button>
       </div>
@@ -150,7 +152,7 @@ export default function ModsPage() {
                 <Button
                   size="sm"
                   variant={already ? "ghost" : "primary"}
-                  disabled={already}
+                  disabled={managed || already}
                   busy={busy === `add-${f.slug}`}
                   onClick={() => void manage(`add-${f.slug}`, { op: "add", slug: f.slug }, `${f.title} added — hit Apply to install`)}
                 >
@@ -170,7 +172,7 @@ export default function ModsPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && void search()}
-              placeholder={`Search Fabric mods for ${data?.mcVersion ?? "26.2"}…`}
+              placeholder={`Search Fabric mods for ${data?.mcVersion ?? "26.3"}…`}
               className="w-full"
             />
             <Button onClick={() => void search()} busy={searching}>
@@ -208,7 +210,7 @@ export default function ModsPage() {
                   <Button
                     size="sm"
                     variant={already ? "ghost" : "primary"}
-                    disabled={already}
+                    disabled={managed || already}
                     busy={busy === `add-${h.slug}`}
                     onClick={() => void manage(`add-${h.slug}`, { op: "add", slug: h.slug }, `${h.title} added`)}
                   >
@@ -223,8 +225,7 @@ export default function ModsPage() {
         {/* managed list */}
         <Card title={`Managed mods (${data?.managed.length ?? 0})`}>
           <p className="mb-3 text-[11px] leading-relaxed text-muted">
-            These Modrinth projects are pinned in <code>.env</code> (MODRINTH_PROJECTS). The server resolves the
-            newest compatible build on every start, so updating Minecraft also updates these automatically.
+            Entries with version IDs stay fixed. Review Minecraft, loader and mod compatibility together before updating.
           </p>
           <ul className="space-y-1.5">
             {(data?.managed ?? []).map((slug) => (
@@ -240,6 +241,7 @@ export default function ModsPage() {
                     <Button
                       size="sm"
                       variant="danger"
+                      disabled={managed}
                       busy={busy === `remove-${slug}`}
                       onClick={() => void manage(`remove-${slug}`, { op: "remove", slug }, `${slug} removed`)}
                     >
@@ -285,6 +287,7 @@ export default function ModsPage() {
                     <div className="flex justify-end gap-1.5">
                       <Button
                         size="sm"
+                        disabled={managed}
                         busy={busy === `toggle-${m.file}`}
                         onClick={() =>
                           void manage(
@@ -300,6 +303,7 @@ export default function ModsPage() {
                       <Button
                         size="sm"
                         variant="danger"
+                        disabled={managed}
                         busy={busy === `delete-${m.file}`}
                         onClick={() => void manage(`delete-${m.file}`, { op: "delete", file: m.file }, `${m.file} deleted`)}
                       >

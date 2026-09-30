@@ -1,5 +1,8 @@
 import { execFile } from "node:child_process";
 import { env } from "./env";
+import { assertDeploymentEditable } from "./managed";
+import { withServerOperation } from "./operation";
+import path from "node:path";
 
 /**
  * Apply configuration changes by re-running docker compose for a service.
@@ -9,21 +12,22 @@ import { env } from "./env";
  */
 
 export function runCompose(args: string[]): Promise<{ ok: boolean; output: string }> {
-  return new Promise((resolve) => {
+  assertDeploymentEditable();
+  return withServerOperation(() => new Promise((resolve) => {
     execFile(
       "docker",
-      ["compose", "--project-directory", env.projectDir, ...args],
+      ["compose", "--project-directory", env.projectDir, "-f", path.join(env.projectDir, env.composeFile), ...args],
       { timeout: 10 * 60 * 1000, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout, stderr) => {
         resolve({ ok: !err, output: [stdout, stderr, err?.message].filter(Boolean).join("\n") });
       }
     );
-  });
+  }));
 }
 
 /** Recreate the Minecraft container so new .env values take effect. */
 export function applyMcConfig(): Promise<{ ok: boolean; output: string }> {
-  return runCompose(["up", "-d", "--no-deps", env.mcContainer]);
+  return runCompose(["up", "-d", "--no-deps", env.mcService]);
 }
 
 /** Recreate the backup sidecar (after backup schedule changes). */

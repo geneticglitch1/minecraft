@@ -1,5 +1,6 @@
 import http from "node:http";
 import { env } from "./env";
+import { withServerOperation } from "./operation";
 
 /**
  * Minimal Docker Engine API client over the unix socket (no dependencies).
@@ -130,6 +131,10 @@ export async function containerEnv(name: string): Promise<Record<string, string>
 export type PowerAction = "start" | "stop" | "restart" | "kill";
 
 export async function powerContainer(name: string, action: PowerAction): Promise<void> {
+  return withServerOperation(() => powerContainerUnlocked(name, action));
+}
+
+async function powerContainerUnlocked(name: string, action: PowerAction): Promise<void> {
   const timeout = action === "stop" || action === "restart" ? "?t=90" : "";
   const { status, body } = await request(`/containers/${name}/${action}${timeout}`, {
     method: "POST",
@@ -292,5 +297,6 @@ export async function execInContainer(
   });
 
   const info = await json<{ ExitCode: number | null }>(`/exec/${Id}/json`);
-  return { exitCode: info.ExitCode ?? 0, output };
+  if (info.ExitCode === null) throw new DockerError("Container command is still running; completion is unverified");
+  return { exitCode: info.ExitCode, output };
 }

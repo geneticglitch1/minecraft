@@ -1,10 +1,11 @@
 import cron, { type ScheduledTask } from "node-cron";
 import { db } from "./db";
 import { notify } from "./notify";
-import { powerContainer, execInContainer } from "./docker";
+import { powerContainer } from "./docker";
 import { rcon } from "./rcon";
 import { say } from "./mc";
 import { env } from "./env";
+import { triggerBackup } from "./backups";
 
 /**
  * Scheduled tasks (cron-based): restarts, backups, announcements, arbitrary
@@ -47,9 +48,7 @@ export async function runScheduleAction(action: Schedule["action"], payload: str
       return "Restarted";
     }
     case "backup": {
-      const res = await execInContainer(env.backupContainer, ["backup", "now"]);
-      if (res.exitCode !== 0) throw new Error(res.output.slice(-500) || "backup failed");
-      return "Backup completed";
+      return await triggerBackup();
     }
     case "command": {
       if (!payload) throw new Error("No command configured");

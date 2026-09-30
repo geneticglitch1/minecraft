@@ -14,6 +14,11 @@ function str(key: string, fallback: string): string {
 
 export const env = {
   dev,
+  managed: process.env.PANEL_MANAGED === "true",
+  mcService: str("MC_SERVICE", "mc"),
+  composeFile: str("COMPOSE_FILE_NAME", "docker-compose.yml"),
+  restoreWorkDir: path.resolve(str("RESTORE_WORK_DIR", dev ? "./dev-data/restore" : "/restore-work")),
+  restoreHelper: str("RESTORE_HELPER", "/app/restore_data.py"),
   sessionSecret: str("PANEL_SESSION_SECRET", dev ? "craftdeck-dev-secret-do-not-use" : ""),
   initialAdminPassword: str("PANEL_ADMIN_PASSWORD", dev ? "admin" : ""),
 

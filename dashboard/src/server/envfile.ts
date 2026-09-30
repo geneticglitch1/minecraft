@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { env } from "./env";
+import { assertDeploymentEditable } from "./managed";
 
 /**
  * Read/write the project .env file while preserving comments and ordering.
@@ -18,16 +19,20 @@ export function readEnvFile(): Record<string, string> {
   try {
     text = fs.readFileSync(envFilePath(), "utf8");
   } catch {
-    return out;
+    return env.managed ? Object.fromEntries(EDITABLE_ENV_KEYS.map((key) => [key, process.env[key] ?? ""])) : out;
   }
   for (const line of text.split("\n")) {
     const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/);
     if (m) out[m[1]] = m[2].trim();
   }
+  if (env.managed) {
+    for (const key of EDITABLE_ENV_KEYS) out[key] = process.env[key] ?? out[key] ?? "";
+  }
   return out;
 }
 
 export function writeEnvFile(updates: Record<string, string>): void {
+  assertDeploymentEditable();
   const file = envFilePath();
   let lines: string[];
   try {
