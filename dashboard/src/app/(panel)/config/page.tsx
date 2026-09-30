@@ -39,6 +39,8 @@ const SECTIONS = [
 ] as const;
 
 export default function ConfigPage() {
+  const { data: deployment } = useApi<{ managed: boolean }>("/api/deployment", 0);
+  const managed = deployment?.managed ?? true;
   const { data, refresh } = useApi<ConfigValues>("/api/config", 0);
   const [values, setValues] = useState<ConfigValues>({});
   const [saving, setSaving] = useState(false);
@@ -103,10 +105,10 @@ export default function ConfigPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={save} busy={saving} disabled={!dirty}>
+          <Button onClick={save} busy={saving} disabled={managed || !dirty}>
             Save
           </Button>
-          <Button variant="primary" onClick={() => setApplyOpen(true)} disabled={dirty}>
+          <Button variant="primary" onClick={() => setApplyOpen(true)} disabled={managed || dirty}>
             <Rocket size={14} /> Apply (restarts server)
           </Button>
         </div>
@@ -128,6 +130,7 @@ export default function ConfigPage() {
                 <div key={f.key}>
                   <label className="mb-1 block text-xs font-medium text-ink2">{f.label}</label>
                   <Input
+                    disabled={managed}
                     value={values[f.key] ?? ""}
                     onChange={(e) => set(f.key, e.target.value)}
                     className="w-full font-mono"

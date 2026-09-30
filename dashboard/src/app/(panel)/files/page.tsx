@@ -17,7 +17,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
 import { yaml } from "@codemirror/lang-yaml";
 import { oneDark } from "@codemirror/theme-one-dark";
-import { api, toast } from "@/lib/api";
+import { api, toast, useApi } from "@/lib/api";
 import { Card, Button, EmptyState, Input, Modal } from "@/components/ui";
 import { fmtBytes, fmtDateTime } from "@/lib/format";
 
@@ -32,6 +32,8 @@ function langFor(name: string) {
 }
 
 export default function FilesPage() {
+  const { data: deployment } = useApi<{ managed: boolean }>("/api/deployment");
+  const managed = deployment?.managed ?? true;
   const [path, setPath] = useState("");
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,10 +126,10 @@ export default function FilesPage() {
               e.target.value = "";
             }}
           />
-          <Button size="sm" onClick={() => uploadRef.current?.click()}>
+          <Button disabled={managed} size="sm" onClick={() => uploadRef.current?.click()}>
             <Upload size={13} /> Upload here
           </Button>
-          <Button size="sm" onClick={() => setMkdirOpen(true)}>
+          <Button disabled={managed} size="sm" onClick={() => setMkdirOpen(true)}>
             <FolderPlus size={13} /> New folder
           </Button>
         </div>
@@ -187,6 +189,7 @@ export default function FilesPage() {
                         </a>
                       )}
                       <button
+                        disabled={managed}
                         onClick={() => setConfirmDelete(e)}
                         className="rounded p-1 text-muted hover:text-crit"
                         title={e.type === "dir" ? "Delete (empty folders only)" : "Delete"}
@@ -213,7 +216,7 @@ export default function FilesPage() {
                 {editing.truncated && <span className="text-[10px] text-warn">(truncated — file over 2 MB)</span>}
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="primary" onClick={save} busy={saving} disabled={!editing.dirty || editing.truncated}>
+                <Button size="sm" variant="primary" onClick={save} busy={saving} disabled={managed || !editing.dirty || editing.truncated}>
                   <Save size={13} /> Save
                 </Button>
                 <Button size="sm" onClick={() => setEditing(null)}>
@@ -223,6 +226,8 @@ export default function FilesPage() {
             </header>
             <div className="scroll-slim min-h-0 flex-1 overflow-auto">
               <CodeMirror
+                editable={!managed}
+                readOnly={managed}
                 value={editing.content}
                 onChange={(v) => setEditing((e) => (e ? { ...e, content: v, dirty: true } : e))}
                 extensions={langFor(editing.path)}

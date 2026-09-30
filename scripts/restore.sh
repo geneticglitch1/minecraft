@@ -1,25 +1,29 @@
 #!/usr/bin/env bash
-# Manual backup restore (fallback for when the dashboard is unavailable).
-# The dashboard's Backups page does this same procedure with one click.
-#
-# Usage: ./scripts/restore.sh data/backups/world-20260710-120000.tgz
+# Clean restore fallback. Python 3.12+ required. Retains the prior world.
+# Standalone: scripts/restore.sh /absolute/backup.tgz
+# Orion: scripts/restore.sh /absolute/backup.tgz /opt/minecraft/project /opt/minecraft/data
 set -euo pipefail
-cd "$(dirname "$0")/.."
-
-archive="${1:-}"
-[[ -n "$archive" && -f "$archive" ]] || {
-  echo "Usage: $0 <backup .tgz file>"
-  echo "Available backups:"
-  ls -1h data/backups/*.tgz 2>/dev/null || echo "  (none)"
-  exit 1
-}
-
-echo "This will STOP the server and overwrite the current world with:"
-echo "  $archive"
-read -r -p "Type 'restore' to continue: " confirm
-[[ "$confirm" == "restore" ]] || { echo "Aborted."; exit 1; }
-
-docker compose stop mc
-tar -xzf "$archive" -C data/mc
-docker compose start mc
-echo "✔ Restore complete — server starting."
+repo=$(cd "$(dirname "$0")/.." && pwd)
+archive=${1:?Supply an existing archive}
+archive=$(realpath "$archive")
+project=${2:-$repo}
+data=${3:-$repo/data}
+[[ -f "$archive" ]] || exit 1
+helper="$repo/dashboard/scripts/restore_data.py"
+python3 "$helper" verify --archive "$archive"
+echo "Restore $archive into $data/mc; retain current data in $data/restore."
+read -r -p "Type 'restore' to stop the stack and continue: " confirm
+[[ "$confirm" == restore ]] || exit 1
+cd "$project"
+export PROJECT_DIR="$project"
+# Stop the panel as well: its in-process queue cannot coordinate with this script.
+running=$(docker compose ps --status running --services)
+docker compose stop dashboard backup mc
+args=(restore --archive "$archive" --data "$data/mc" --work "$data/restore")
+[[ ! -f "$project/release-lock.json" ]] || args+=(--lock-file "$project/release-lock.json")
+# On failure, leave writers stopped for inspection.
+python3 "$helper" "${args[@]}"
+for service in mc backup dashboard; do
+    if [[ $'\n'"$running"$'\n' == *$'\n'"$service"$'\n'* ]]; then docker compose start "$service"; fi
+done
+echo 'Restore complete. Previous data was retained in the restore workspace.'

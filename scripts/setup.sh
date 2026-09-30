@@ -21,7 +21,9 @@ sed -e "s|^RCON_PASSWORD=.*|RCON_PASSWORD=${rcon_pw}|" \
     -e "s|^PANEL_ADMIN_PASSWORD=.*|PANEL_ADMIN_PASSWORD=${admin_pw}|" \
     .env.example > .env
 
-mkdir -p data/mc data/backups data/dashboard
+printf '\nPROJECT_DIR=%s\n' "$PWD" >> .env
+chmod 600 .env
+mkdir -p data/mc data/backups data/dashboard data/restore
 
 echo
 echo "  ✔ .env created with generated secrets"

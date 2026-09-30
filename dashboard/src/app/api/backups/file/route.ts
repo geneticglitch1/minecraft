@@ -26,7 +26,7 @@ export async function DELETE(req: NextRequest) {
   return handle(async () => {
     const name = req.nextUrl.searchParams.get("name");
     if (!name) return fail("Missing backup name");
-    deleteBackup(name);
+    await deleteBackup(name);
     return ok({ deleted: name });
   });
 }

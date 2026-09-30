@@ -3,6 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { readEnvFile, writeEnvFile } from "./envfile";
 import { env } from "./env";
+import { assertDeploymentEditable } from "./managed";
 
 /**
  * Mod management: the MODRINTH_PROJECTS list in .env is the source of truth
@@ -24,7 +25,7 @@ export type ModSearchResult = {
 };
 
 export function currentMcVersion(): string {
-  return readEnvFile()["MC_VERSION"] || "26.2";
+  return readEnvFile()["MC_VERSION"] || "26.3";
 }
 
 export async function searchMods(query: string): Promise<ModSearchResult[]> {
@@ -143,11 +144,13 @@ function safeModFile(file: string): string {
 }
 
 export function toggleMod(file: string): void {
+  assertDeploymentEditable();
   const full = safeModFile(file);
   const target = full.endsWith(".disabled") ? full.slice(0, -".disabled".length) : `${full}.disabled`;
   fs.renameSync(full, target);
 }
 
 export function deleteModFile(file: string): void {
+  assertDeploymentEditable();
   fs.unlinkSync(safeModFile(file));
 }

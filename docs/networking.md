@@ -54,3 +54,7 @@ setup and add a `caddy` service; the panel works fine behind a reverse proxy
 Performance & Lag page. Server-side lag shows as low TPS / high MSPT (affects everyone
 equally); player-side lag shows as high ping for that player only. The page gives a
 plain-English verdict and per-player ping history so you can settle the argument.
+
+## Orion integration
+
+Orion uses the dedicated managed Compose file in homelab-infra, with TCPShield and OPNsense. Follow [orion.md](orion.md) and [tcpshield.md](tcpshield.md); standalone direct-port examples above do not describe that ingress path.

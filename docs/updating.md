@@ -1,39 +1,11 @@
-# Updating
+# Reviewed updates
 
-## Upgrading Minecraft (e.g. 26.2 → 26.3)
+For Orion, edit `homelab-infra/stacks/minecraft/release-lock.json` and Compose together. Verify the Minecraft, Java, Fabric, mod and Velocity compatibility matrix against upstream releases. Build and test the exact CraftDeck commit; record its immutable local image ID. No production setting should use `latest` without an image digest or an unversioned mod slug.
 
-1. **Configuration** page → change `Minecraft version` → **Save**
-2. **Apply** with *"Take a safety backup first"* enabled
-3. The server container is recreated: the new server jar, a matching Fabric loader, and
-   fresh builds of every managed mod are downloaded automatically
+Before an update, make a complete stopped backup with the infrastructure `cold-backup.sh`, copy it off-host, and verify a restore in an isolated instance. Start the candidate on a disposable world and a copy of existing state first. Confirm authentication UUIDs, whitelist, registration, proxy IP forwarding and resource headroom.
 
-If a managed mod has no build for the new version yet, the server won't start — check
-the Console page for which one, remove it from the Mods page (or wait a few days), and
-Apply again. Worlds upgrade forward automatically; **there is no downgrade** — that's
-what the safety backup is for.
+After approval, stop through Komodo, materialize the reviewed files, preserve the previous project/lock and image, and update the world's `.deployment-lock.json` to the candidate release. Do not use the initial preparation script to overwrite an existing installation. Deploy manually and run the acceptance checks in the infrastructure README.
 
-Command-line equivalent:
+Rollback means restoring the matching complete data backup, panel database, secrets, proxy configuration and previous image/lock. Downgrading a version setting against a newer world is not a rollback. Managed panel restores deliberately refuse mismatched release locks.
 
-```bash
-sed -i 's/^MC_VERSION=.*/MC_VERSION=26.3/' .env
-docker exec mc-backup backup now
-docker compose up -d mc
-```
-
-## Updating mods only
-
-Mods page → **Update all & restart**. (Any server restart re-resolves managed mods.)
-
-## Updating the panel / images
-
-```bash
-git pull
-docker compose pull          # new itzg server + backup images
-docker compose build dashboard
-docker compose up -d
-```
-
-## Snapshots / release candidates
-
-`MC_VERSION` accepts any version the launcher knows (`26.3-rc-1`, `26.3-snapshot-3`…).
-Mods rarely support snapshots — expect to trim the mod list if you try them.
+For the standalone setup, `PROJECT_DIR` must equal the absolute host checkout. Update the explicit image, Minecraft, loader and Modrinth pins together. Config/mod Apply takes a required backup and aborts on failure. Newly added unversioned mod slugs remain a standalone convenience; pin their reviewed Modrinth version IDs before treating that installation as a locked release.

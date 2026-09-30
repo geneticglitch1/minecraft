@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { DockerError } from "./docker";
 import { RconError } from "./rcon";
+import { ManagedDeploymentError } from "./managed";
 
 /**
  * Small helpers for route handlers. Authentication is enforced globally in
@@ -21,6 +22,7 @@ export function handle(fn: () => Promise<NextResponse> | NextResponse) {
     try {
       return await fn();
     } catch (err) {
+      if (err instanceof ManagedDeploymentError) return fail(err.message, 409);
       if (err instanceof DockerError && err.kind === "unavailable") {
         return fail("Docker is unreachable from the panel", 503);
       }

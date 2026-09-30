@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { env } from "./env";
+import { assertDeploymentEditable } from "./managed";
 
 /**
  * Sandboxed file access for the file browser / editors. Every path is
@@ -80,18 +81,21 @@ export function readTextFile(rel: string): { content: string; truncated: boolean
 }
 
 export function writeTextFile(rel: string, content: string): void {
+  assertDeploymentEditable();
   const abs = resolveSafe(rel);
   fs.writeFileSync(abs, content);
   fixOwnership(abs);
 }
 
 export function writeBinaryFile(rel: string, data: Buffer): void {
+  assertDeploymentEditable();
   const abs = resolveSafe(rel);
   fs.writeFileSync(abs, data);
   fixOwnership(abs);
 }
 
 export function deletePath(rel: string): void {
+  assertDeploymentEditable();
   const abs = resolveSafe(rel);
   if (abs === env.mcDataDir) throw new Error("Refusing to delete the data root");
   const st = fs.statSync(abs);
@@ -103,6 +107,7 @@ export function deletePath(rel: string): void {
 }
 
 export function makeDir(rel: string): void {
+  assertDeploymentEditable();
   const abs = resolveSafe(rel);
   fs.mkdirSync(abs, { recursive: true });
   fixOwnership(abs);

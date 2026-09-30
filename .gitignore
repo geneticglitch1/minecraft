@@ -12,3 +12,7 @@ dashboard/next-env.d.ts
 
 # OS noise
 .DS_Store
+
+# Local validation artifacts
+__pycache__/
+*.tsbuildinfo
