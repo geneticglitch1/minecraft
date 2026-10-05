@@ -11,6 +11,9 @@ A production-quality, self-hosted Minecraft **Java 26.3** server for friends:
 - **CraftDeck**, a full web management panel: live console, players & stats, lag
   diagnostics, performance graphs, mod manager with Modrinth search, backups & restore,
   file browser/editor, config editor, scheduled tasks, Discord alerts
+- **Worlds & Network**: isolated concurrent server profiles, Velocity lobby routing,
+  Paper/Folia and modded runtimes, live map integrations, resource pack settings,
+  per-server consoles/files and verified backup/restore — [guide](docs/worlds-and-network.md)
 - **Automatic backups** with retention, **one-command deployment**, everything in Docker
 
 | | |
@@ -66,6 +69,9 @@ they're ready. Full details: [docs/auth-flow.md](docs/auth-flow.md).
 | Discord alerts | Settings page |
 
 ## Documentation
+
+- [docs/worlds-and-network.md](docs/worlds-and-network.md) — multiple servers, lobby routing, maps and resource packs
+- [docs/apple-container.md](docs/apple-container.md) — native Mac tests and x86_64 image builds with Apple’s container CLI
 
 - [docs/auth-flow.md](docs/auth-flow.md) — how the approval/registration system works
 - [docs/mods-and-modpacks.md](docs/mods-and-modpacks.md) — adding mods, switching to modpacks or other loaders

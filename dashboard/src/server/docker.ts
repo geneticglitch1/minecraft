@@ -1,4 +1,5 @@
 import http from "node:http";
+import { appleInspect, applePower, appleExec, appleEnvironment, appleStats, appleLogStream, appleInfrastructure } from "./apple-container";
 import { env } from "./env";
 import { withServerOperation } from "./operation";
 
@@ -97,6 +98,7 @@ type InspectResponse = {
 };
 
 export async function inspectContainer(name: string): Promise<ContainerState> {
+  if (env.containerRuntime === "apple") return appleInspect(name);
   try {
     const data = await json<InspectResponse>(`/containers/${name}/json`);
     return {
@@ -117,6 +119,7 @@ export async function inspectContainer(name: string): Promise<ContainerState> {
 }
 
 export async function containerEnv(name: string): Promise<Record<string, string>> {
+  if (env.containerRuntime === "apple") return appleEnvironment(name);
   const data = await json<InspectResponse>(`/containers/${name}/json`);
   const out: Record<string, string> = {};
   for (const kv of data.Config.Env ?? []) {
@@ -135,6 +138,7 @@ export async function powerContainer(name: string, action: PowerAction): Promise
 }
 
 async function powerContainerUnlocked(name: string, action: PowerAction): Promise<void> {
+  if (env.containerRuntime === "apple") return applePower(name, action);
   const timeout = action === "stop" || action === "restart" ? "?t=90" : "";
   const { status, body } = await request(`/containers/${name}/${action}${timeout}`, {
     method: "POST",
@@ -172,6 +176,7 @@ type StatsResponse = {
 };
 
 export async function containerStats(name: string): Promise<ContainerStats> {
+  if (env.containerRuntime === "apple") return appleStats(name);
   // one-shot=false + stream=false makes the daemon take two samples so the
   // precpu fields are populated and CPU% is computable from a single call
   const s = await json<StatsResponse>(`/containers/${name}/stats?stream=false`);
@@ -231,6 +236,7 @@ export function streamContainerLogs(
   onLine: (line: string) => void,
   onEnd?: (err?: Error) => void
 ): LogStreamHandle {
+  if (env.containerRuntime === "apple") return appleLogStream(name, opts, onLine, onEnd);
   const req = http.request({
     socketPath: env.dockerSocket,
     path: `/containers/${name}/logs?stdout=1&stderr=1&tail=${opts.tail}&follow=${opts.follow ? 1 : 0}`,
@@ -267,6 +273,7 @@ export async function execInContainer(
   cmd: string[],
   timeoutMs = 15 * 60 * 1000
 ): Promise<{ exitCode: number; output: string }> {
+  if (env.containerRuntime === "apple") return appleExec(name, cmd, timeoutMs);
   const { Id } = await json<{ Id: string }>(`/containers/${name}/exec`, {
     method: "POST",
     body: { AttachStdout: true, AttachStderr: true, Cmd: cmd },
@@ -299,4 +306,14 @@ export async function execInContainer(
   const info = await json<{ ExitCode: number | null }>(`/exec/${Id}/json`);
   if (info.ExitCode === null) throw new DockerError("Container command is still running; completion is unverified");
   return { exitCode: info.ExitCode, output };
+}
+
+/** Network profiles join the primary stack's Docker network and data mount. */
+export async function networkInfrastructure() {
+  if (env.containerRuntime === "apple") return appleInfrastructure();
+  const data = await json<{ Mounts: Array<{ Type: string; Source: string; Destination: string }>; NetworkSettings: { Networks: Record<string, unknown> } }>(`/containers/${env.mcContainer}/json`);
+  const mount = data.Mounts.find(m => m.Destination === "/data" && m.Type === "bind");
+  const networks = Object.keys(data.NetworkSettings.Networks).filter(n => n !== "host" && n !== "none" && n !== "bridge");
+  if (!mount || networks.length !== 1) throw new Error("Network deployment requires the primary server's /data bind mount and one user-defined Docker network");
+  return { hostDataDir: mount.Source, network: networks[0] };
 }

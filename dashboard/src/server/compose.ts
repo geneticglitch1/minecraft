@@ -13,6 +13,7 @@ import path from "node:path";
 
 export function runCompose(args: string[]): Promise<{ ok: boolean; output: string }> {
   assertDeploymentEditable();
+  if (env.containerRuntime === "apple") throw new Error("Primary Compose configuration applies on the production Docker host. Use Worlds & Network for native Apple-container profiles.");
   return withServerOperation(() => new Promise((resolve) => {
     execFile(
       "docker",

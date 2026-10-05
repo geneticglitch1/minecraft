@@ -14,6 +14,7 @@ function str(key: string, fallback: string): string {
 
 export const env = {
   dev,
+  containerRuntime: str("CONTAINER_RUNTIME", "docker"),
   managed: process.env.PANEL_MANAGED === "true",
   mcService: str("MC_SERVICE", "mc"),
   composeFile: str("COMPOSE_FILE_NAME", "docker-compose.yml"),

@@ -19,6 +19,9 @@ import {
   Bell,
   LogOut,
   CircleDot,
+  Network,
+  Map,
+  Compass,
 } from "lucide-react";
 import { api, useApi, useSSE, toast } from "@/lib/api";
 import { Badge, Toaster } from "@/components/ui";
@@ -26,6 +29,9 @@ import { timeAgo } from "@/lib/format";
 
 const NAV = [
   { href: "/", label: "Overview", icon: Gauge },
+  { href: "/network", label: "Worlds & Network", icon: Network },
+  { href: "/maps", label: "Live Maps", icon: Map },
+  { href: "/features", label: "Capabilities", icon: Compass },
   { href: "/console", label: "Console", icon: TerminalSquare },
   { href: "/players", label: "Players", icon: Users },
   { href: "/access", label: "Access & Auth", icon: ShieldCheck },
@@ -139,7 +145,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               }`}
             >
               <CircleDot size={12} />
-              {isRunning ? "Online" : "Offline"}
+              Primary · {isRunning ? "Online" : "Offline"}
             </span>
             {isRunning && (
               <span className="text-xs text-ink2">
